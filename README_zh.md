@@ -74,7 +74,7 @@
 本工程为多模块 HAR + HAP 应用工程，使用 Hvigor 构建，产物为 `com.ohos.players` 系统应用包。
 
 ### 环境要求
-- Openharmony SDK: compileSdkVersion 26, compatibleSdkVwrsion 23
+- Openharmony SDK: compileSdkVersion 26, compatibleSdkVersion 23
 - DevEco Studio 或命令行 Hvigor 工具链
 - 系统签名证书（见 `signature/`）
 
@@ -314,68 +314,68 @@ applications_players
 ├─AppScope                              # 应用级配置与多语言资源
 │  ├─app.json5                          # bundleName、版本号等
 │  └─resources/                         # 全局字符串 / 图标等资源
-├─entry                                 # 产品层
+├─entry                                 # 产品层，承载应用入口、主页面与页面导航
 │  └─src/main/ets/
-│     ├─abilities/                      # MainAbility 入口，UIAbility 生命周期
-│     ├─pages/                          # MainPage、DefaultIndexPage、PlaylistPage
-│     ├─pages/nav/                      # NavDestination 子页面（音频/视频/搜索/设置等）
-│     ├─navigation/                     # NavPathStack 路由表
-│     ├─components/                     # 首页顶栏、分类 Tab、浮动 Tab 栏等
-│     ├─viewmodel/                      # HomeViewModel、PlaylistViewModel 等编排者
-│     ├─constants/                      # 路由常量、视图常量
-│     └─utils/                          # ExternalWantResolver、NavRouterHelper
+│     ├─abilities/                      # Ability 入口与 UIAbility 生命周期管理
+│     ├─pages/                          # 首页、默认索引页、歌单页等主页面
+│     ├─pages/nav/                      # NavDestination 子页面，包括音频/视频/搜索/设置等
+│     ├─navigation/                     # NavPathStack 路由表与页面注册
+│     ├─components/                     # 首页组件，包括顶栏、分类 Tab、浮动 Tab 栏等
+│     ├─viewmodel/                      # 页面级业务编排，包括首页与歌单的 ViewModel
+│     ├─constants/                      # 路由名称、视图尺寸等常量
+│     └─utils/                          # 外部 Want 解析、导航跳转等工具
 ├─feature                               # 特性层
 │  ├─media/                             # 媒体列表浏览
 │  │  └─src/main/ets/
-│  │     ├─components/                  # MediaAggregateView、MediaGridItem 等
-│  │     ├─manager/                     # MediaAggregateViewModel
-│  │     ├─constants/                   # 布局、排序、UI 常量
-│  │     ├─datasource/                  # MediaViewArrayDataSource
-│  │     └─utils/                       # MediaSortDisplayUtil
+│  │     ├─components/                  # 列表与宫格视图组件
+│  │     ├─manager/                     # 媒体列表业务编排与状态管理
+│  │     ├─constants/                   # 布局模式、排序规则、UI 尺寸等常量
+│  │     ├─datasource/                  # 媒体列表数据源适配
+│  │     └─utils/                       # 排序项展示等工具
 │  ├─player/                            # 音视频播放
 │  │  └─src/main/ets/
-│  │     ├─pages/                       # AudioPage、VideoPlayPage
-│  │     ├─component/                   # AudioPlayer、AVVideoPlayer、MiniPlayerBar 等
-│  │     ├─controller/                  # AVPlayerController、AudioPlayerController、VideoPlayerController
-│  │     ├─session/                     # AudioPlaybackSession、VideoPlaybackSession 等
-│  │     ├─viewmodel/                   # VideoPlaybackViewModel、VideoPipViewModel
-│  │     ├─view/                        # TitleBar、ToolButton
-│  │     ├─datasource/                  # PlaybackQueueDataSource
-│  │     ├─utils/                       # PlayerWindowModeUtil、VideoLayoutUtil 等
-│  │     └─constants/                   # 播放控制、PiP、UI 常量
+│  │     ├─pages/                       # 音频播放页、视频播放页
+│  │     ├─component/                   # 播放器组件，包括迷你播放条、视频播放器等
+│  │     ├─controller/                  # 播放控制，包括音频/视频/通用播放控制器
+│  │     ├─session/                     # AVSession 媒体会话与后台播放管理
+│  │     ├─viewmodel/                   # 视频播放与画中画业务编排
+│  │     ├─view/                        # 标题栏、工具按钮等视图组件
+│  │     ├─datasource/                  # 播放队列数据源适配
+│  │     ├─utils/                       # 窗口模式、视频布局等工具
+│  │     └─constants/                   # 播放控制、画中画、UI 尺寸等常量
 │  ├─playlist/                          # 歌单管理
 │  │  └─src/main/ets/
-│  │     ├─components/                  # PlaylistView、PlaylistDetailView、PlaylistEditView 等
-│  │     ├─datasource/                  # PlaylistDataSource、PlaylistTrackDataSource
-│  │     ├─model/                       # PlaylistItem
-│  │     ├─constants/                   # PlaylistConstants
-│  │     └─utils/                       # PlaylistNameInputUtil
+│  │     ├─components/                  # 歌单列表、详情、编辑等组件
+│  │     ├─datasource/                  # 歌单列表与曲目数据源适配
+│  │     ├─model/                       # 歌单数据模型
+│  │     ├─constants/                   # 歌单 UI 常量，包括卡片样式、网格布局、名称输入弹窗等
+│  │     └─utils/                       # 歌单名称输入校验等工具
 │  └─search/                            # 搜索
 │     └─src/main/ets/
-│        ├─components/                  # SearchOverlay、SearchResultItem
-│        ├─viewmodel/                   # SearchViewModel
-│        ├─manager/                     # SearchIndexCoordinator
-│        ├─utils/                       # SearchPreference
-│        └─constants/                   # 搜索 UI、偏好常量
+│        ├─components/                  # 搜索浮层、搜索结果项等组件
+│        ├─viewmodel/                   # 搜索业务编排
+│        ├─manager/                     # 搜索索引协调管理
+│        ├─utils/                       # 搜索偏好配置等工具
+│        └─constants/                   # 搜索 UI、偏好等常量
 ├─common                                # 公共能力层
 │  └─src/main/ets/
-│     ├─bridge/                         # 依赖注入桥接接口（IMediaListAccess）
-│     ├─cache/                          # 媒体列表缓存（MediaCacheManager）
-│     ├─component/                      # 通用 UI 组件（EmptyStateView、SearchBar、NavBackButton 等）
-│     ├─constants/                      # 常量定义（AppTheme、Player、SupportedMedia 等）
-│     ├─context/                        # 全局上下文持有者（AppContext）
-│     ├─datasource/                     # 数据源抽象（IMediaDataSource、MediaDataSource 等）
-│     ├─listener/                       # 文件监听（FileListenerManager、FileSyncEngine）
-│     ├─model/                          # 数据模型（AudioItem、VideoItem、GroupFileInfo 等）
-│     ├─notification/                   # 通知管理（MediaProgressNotificationHelper）
-│     ├─permission/                     # 权限管理（MediaPermissionManager）
-│     ├─persistence/                    # 持久化（MediaDbManager/RDB、PlaybackHistory、DisplaySettings 等）
-│     ├─player/                         # 播放引擎（PlaybackQueueManager、AVPlayerManager）
-│     ├─scan/                           # 扫描任务调度（MediaFileScanner、ScanStateManager、ScanTaskPool）
-│     ├─search/                         # 倒排索引（SearchIndexManager）
-│     ├─storage/                        # 全局存储（AppLocalStorage）
-│     ├─thumbnail/                      # 缩略图多级缓存（ThumbnailManager、DiskCache、MemoryCache）
-│     └─utils/                          # 工具集（HiLog、MediaMetadataResolver、DeviceConfigUtil 等）
+│     ├─bridge/                         # 依赖注入桥接接口
+│     ├─cache/                          # 媒体列表缓存管理
+│     ├─component/                      # 通用 UI 组件，包括空状态、搜索栏、返回按钮等
+│     ├─constants/                      # 主题、播放器、支持的媒体格式等常量
+│     ├─context/                        # 全局上下文持有者
+│     ├─datasource/                     # 数据源抽象与实现
+│     ├─listener/                       # 文件监听与同步引擎
+│     ├─model/                          # 数据模型，包括音频项、视频项、文件信息等
+│     ├─notification/                   # 通知管理，包括进度通知等
+│     ├─permission/                     # 权限管理
+│     ├─persistence/                    # 持久化，包括数据库管理、播放历史、显示设置等
+│     ├─player/                         # 播放引擎，包括播放队列管理、AVPlayer 管理等
+│     ├─scan/                           # 扫描任务调度，包括扫描器、状态管理、任务池等
+│     ├─search/                         # 倒排索引与搜索索引管理
+│     ├─storage/                        # 全局本地存储
+│     ├─thumbnail/                      # 缩略图多级缓存，包括磁盘缓存与内存缓存
+│     └─utils/                          # 通用工具，包括日志、元数据解析、设备配置等
 ├─hvigor                                # 构建工具配置
 ├─signature                             # 签名证书与 profile
 ├─figures                               # 架构/构建文档图片

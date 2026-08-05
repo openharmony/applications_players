@@ -1,0 +1,148 @@
+{
+  "string": [
+    {
+      "name": "Song_List",
+      "value": "Playlist List"
+    },
+    {
+      "name": "delete",
+      "value": "Delete"
+    },
+    {
+      "name": "cancel",
+      "value": "Cancel"
+    },
+    {
+      "name": "confirm",
+      "value": "Confirm"
+    },
+    {
+      "name": "playlist_empty_title",
+      "value": "No Playlists"
+    },
+    {
+      "name": "playlist_empty_hint",
+      "value": "Tap + in the top-right corner to create first playlist"
+    },
+    {
+      "name": "playlist_create_new",
+      "value": "New Playlist"
+    },
+    {
+      "name": "playlist_track_count",
+      "value": "%d tracks"
+    },
+    {
+      "name": "playlist_create_dialog_title",
+      "value": "New Playlist Name"
+    },
+    {
+      "name": "playlist_rename_dialog_title",
+      "value": "Rename the playlist name"
+    },
+    {
+      "name": "playlist_name_placeholder",
+      "value": "Enter name"
+    },
+    {
+      "name": "playlist_menu_play",
+      "value": "Play"
+    },
+    {
+      "name": "playlist_menu_add_to_queue",
+      "value": "Add to Playlist"
+    },
+    {
+      "name": "playlist_menu_add_to",
+      "value": "Add To"
+    },
+    {
+      "name": "playlist_menu_rename",
+      "value": "Rename"
+    },
+    {
+      "name": "playlist_menu_select",
+      "value": "Select"
+    },
+    {
+      "name": "playlist_menu_open",
+      "value": "Open Playlist"
+    },
+    {
+      "name": "playlist_menu_detail",
+      "value": "Details"
+    },
+    {
+      "name": "playlist_play_all",
+      "value": "Play All %d"
+    },
+    {
+      "name": "playlist_resume_prefix",
+      "value": "Continue: "
+    },
+    {
+      "name": "playlist_detail_empty_title",
+      "value": "List Is Empty"
+    },
+    {
+      "name": "playlist_detail_empty_hint",
+      "value": "Tap the + button in the top-right corner to add audio files"
+    },
+    {
+      "name": "playlist_add_audio_title",
+      "value": "Add Audio"
+    },
+    {
+      "name": "playlist_search_audio",
+      "value": "Search Audio"
+    },
+    {
+      "name": "playlist_add_audio_empty",
+      "value": "No Audio Available to Add"
+    },
+    {
+      "name": "playlist_add_success",
+      "value": "Added to playlist"
+    },
+    {
+      "name": "playlist_add_duplicate",
+      "value": "This audio is already in the playlist"
+    },
+    {
+      "name": "playlist_already_added",
+      "value": "Added"
+    },
+    {
+      "name": "playlist_play_empty",
+      "value": "The playlist is empty. Add audio first."
+    },
+    {
+      "name": "playlist_name_too_long",
+      "value": "The input has reached its max limit"
+    },
+    {
+      "name": "playlist_name_invalid_chars",
+      "value": "Spaces and special characters \\ / : * ? \" < > | are not supported."
+    },
+    {
+      "name": "playlist_delete_confirm_title",
+      "value": "Delete this playlist?"
+    },
+    {
+      "name": "playlist_delete_playlists_confirm",
+      "value": "Delete the selected %d playlists?"
+    },
+    {
+      "name": "playlist_delete_tracks_confirm",
+      "value": "Delete these %d item(s)?"
+    },
+    {
+      "name": "playlist_selection_count",
+      "value": "%d selected"
+    },
+    {
+      "name": "playlist_selection_none",
+      "value": "None selected"
+    }
+  ]
+}

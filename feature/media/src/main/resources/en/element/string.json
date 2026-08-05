@@ -1,0 +1,32 @@
+{
+  "string": [
+    {
+      "name": "sort_by_name",
+      "value": "Sort by Name"
+    },
+    {
+      "name": "sort_by_date",
+      "value": "Sort by Time"
+    },
+    {
+      "name": "sort_by_size",
+      "value": "Sort by Size"
+    },
+    {
+      "name": "sort_value_name",
+      "value": "Name"
+    },
+    {
+      "name": "sort_value_date",
+      "value": "Time"
+    },
+    {
+      "name": "sort_value_size",
+      "value": "Size"
+    },
+    {
+      "name": "sort_prefix",
+      "value": "By "
+    }
+  ]
+}

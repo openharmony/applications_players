@@ -1,0 +1,106 @@
+{
+  "app": {
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",
+        //指定OpenHarmony应用/服务编译时的版本
+        "compileSdkVersion": '26.0.0',
+        //指定OpenHarmony应用/服务兼容的最低版本。版本号需改为10，注意使用英文.和()
+        "compatibleSdkVersion": 23,
+        //指定OpenHarmony应用/服务目标版本。若没有设置，默认为compatibleSdkVersion
+        "targetSdkVersion": 23,
+        //指定为OpenHarmony
+        "runtimeOS": "OpenHarmony"
+      }
+    ],
+    "signingConfigs": [
+      {
+        "name": "default",
+        "material": {
+          "storeFile": "signature/OpenHarmony.p12",
+          "storePassword": "00000016C3411F04F7FC6C030BBEE7FD9E8D377142E5291324AD70FB216FA1936E07E70F1D0A",
+          "keyAlias": "OpenHarmony Application Release",
+          "keyPassword": "000000165881BDA69F950FF445432700581C003BADD70533173C9367C84E66054ABA0E17C86D",
+          "signAlg": "SHA256withECDSA",
+          "profile": "signature/players.p7b",
+          "certpath": "signature/OpenHarmony.cer"
+        }
+      }
+    ]
+  },
+  "modules": [
+    {
+      "name": "phone",
+      "srcPath": "./entry",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "common",
+      "srcPath": "./common",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "player",
+      "srcPath": "./feature/player",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "search",
+      "srcPath": "./feature/search",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "media",
+      "srcPath": "./feature/media",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "playlist",
+      "srcPath": "./feature/playlist",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    }
+  ]
+}

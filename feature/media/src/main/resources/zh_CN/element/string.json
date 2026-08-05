@@ -1,0 +1,32 @@
+{
+  "string": [
+    {
+      "name": "sort_by_name",
+      "value": "按名称排序"
+    },
+    {
+      "name": "sort_by_date",
+      "value": "按时间排序"
+    },
+    {
+      "name": "sort_by_size",
+      "value": "按大小排序"
+    },
+    {
+      "name": "sort_value_name",
+      "value": "名称"
+    },
+    {
+      "name": "sort_value_date",
+      "value": "时间"
+    },
+    {
+      "name": "sort_value_size",
+      "value": "大小"
+    },
+    {
+      "name": "sort_prefix",
+      "value": "按 "
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "color": [
+    {
+      "name": "player_page_bg",
+      "value": "#000000"
+    },
+    {
+      "name": "player_video_canvas_bg",
+      "value": "#000000"
+    },
+    {
+      "name": "player_title_text",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "player_control_icon",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "player_accent_blue",
+      "value": "#007DFF"
+    },
+    {
+      "name": "player_text_secondary",
+      "value": "#99FFFFFF"
+    },
+    {
+      "name": "player_progress_track",
+      "value": "#33FFFFFF"
+    },
+    {
+      "name": "player_gesture_pill_bg",
+      "value": "#4DFFFFFF"
+    },
+    {
+      "name": "player_icon_button_bg",
+      "value": "#00000000"
+    },
+    {
+      "name": "player_speed_chip_bg",
+      "value": "#00000000"
+    },
+    {
+      "name": "player_speed_chip_border",
+      "value": "#00000000"
+    },
+    {
+      "name": "player_speed_menu_bg",
+      "value": "#CC2C2C2E"
+    },
+    {
+      "name": "player_queue_sheet_bg",
+      "value": "#1C1C1E"
+    },
+    {
+      "name": "player_speed_menu_text",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "player_speed_menu_text_secondary",
+      "value": "#99FFFFFF"
+    },
+    {
+      "name": "player_speed_menu_divider",
+      "value": "#1AFFFFFF"
+    },
+    {
+      "name": "player_speed_menu_selected_bg",
+      "value": "#1AFFFFFF"
+    },
+    {
+      "name": "player_speed_menu_border",
+      "value": "#26FFFFFF"
+    },
+    {
+      "name": "player_cover_placeholder_bg",
+      "value": "#2C2C2E"
+    },
+    {
+      "name": "player_progress_time_text",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "player_play_button_bg",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "player_play_button_icon",
+      "value": "#000000"
+    },
+    {
+      "name": "player_progress_selected",
+      "value": "#FFFFFF"
+    }
+  ]
+}

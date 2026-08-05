@@ -1,0 +1,23 @@
+# 混淆规则文件
+# 混淆文件，对代码进行混淆保护
+# -keepnames 不混淆类名，不混淆属性名
+# -keep-class-name 不混淆类名
+# -keep-package-name 不混淆包名
+# 前缀“-”表示不混淆
+# 后缀“*”表示通配符
+# 例如：-keep-class-name com.example.* 表示不混淆com.example包下所有的类名
+
+# 混淆配置，对代码进行混淆保护
+-keep-class-name com.example.*
+-keep-class-name com.huawei.*
+-keep-class-name ohos.*
+-keep-class-name system.*
+-keep-class-name global.*
+-keep-class-name AppStorage
+-keep-class-name PersistentStorage
+-keep-class-name Environment
+-keep-class-name Context
+-keep-class-name AbilityContext
+-keep-class-name UIAbilityContext
+-keep-class-name common.UIAbilityContext
+-keep-class-name common

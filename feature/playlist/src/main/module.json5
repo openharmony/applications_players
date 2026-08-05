@@ -1,0 +1,11 @@
+{
+  "module": {
+    "name": "playlist",
+    "type": "har",
+    "deviceTypes": [
+      "default",
+      "tablet"
+    ],
+    "installationFree": true
+  }
+}

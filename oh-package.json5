@@ -1,0 +1,19 @@
+{
+  "modelVersion": "6.0.2",
+  "name": "players",
+  "version": "1.0.0",
+  "description": "OpenHarmony music player application",
+  "main": "",
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {
+  },
+  "devDependencies": {},
+  "dynamicDependencies": {},
+  "targets": {
+    "default": {
+      "apiVersion": "6.0.2",
+      "arkTSVersion": "6.0.2"
+    }
+  }
+}

@@ -1,0 +1,148 @@
+{
+  "string": [
+    {
+      "name": "Song_List",
+      "value": "歌单列表"
+    },
+    {
+      "name": "delete",
+      "value": "删除"
+    },
+    {
+      "name": "cancel",
+      "value": "取消"
+    },
+    {
+      "name": "confirm",
+      "value": "确定"
+    },
+    {
+      "name": "playlist_empty_title",
+      "value": "暂无歌单"
+    },
+    {
+      "name": "playlist_empty_hint",
+      "value": "点击右上角 按钮 创建第一个歌单列表"
+    },
+    {
+      "name": "playlist_create_new",
+      "value": "新建列表"
+    },
+    {
+      "name": "playlist_track_count",
+      "value": "%d 首"
+    },
+    {
+      "name": "playlist_create_dialog_title",
+      "value": "新建歌单列表名称"
+    },
+    {
+      "name": "playlist_rename_dialog_title",
+      "value": "重命名歌单列表名称"
+    },
+    {
+      "name": "playlist_name_placeholder",
+      "value": "输入名称"
+    },
+    {
+      "name": "playlist_menu_play",
+      "value": "播放"
+    },
+    {
+      "name": "playlist_menu_add_to_queue",
+      "value": "加入播放列表"
+    },
+    {
+      "name": "playlist_menu_add_to",
+      "value": "添加到"
+    },
+    {
+      "name": "playlist_menu_rename",
+      "value": "重命名"
+    },
+    {
+      "name": "playlist_menu_select",
+      "value": "选择"
+    },
+    {
+      "name": "playlist_menu_open",
+      "value": "进入播放列表"
+    },
+    {
+      "name": "playlist_menu_detail",
+      "value": "详情"
+    },
+    {
+      "name": "playlist_play_all",
+      "value": "播放全部 %d"
+    },
+    {
+      "name": "playlist_resume_prefix",
+      "value": "继续播放："
+    },
+    {
+      "name": "playlist_detail_empty_title",
+      "value": "列表为空"
+    },
+    {
+      "name": "playlist_detail_empty_hint",
+      "value": "点击右上角 按钮 添加音频文件"
+    },
+    {
+      "name": "playlist_add_audio_title",
+      "value": "添加音频"
+    },
+    {
+      "name": "playlist_search_audio",
+      "value": "搜索音频"
+    },
+    {
+      "name": "playlist_add_audio_empty",
+      "value": "暂无可添加的音频"
+    },
+    {
+      "name": "playlist_add_success",
+      "value": "已添加到播放列表"
+    },
+    {
+      "name": "playlist_add_duplicate",
+      "value": "该音频已在列表中"
+    },
+    {
+      "name": "playlist_already_added",
+      "value": "已添加"
+    },
+    {
+      "name": "playlist_play_empty",
+      "value": "播放列表为空，请先添加音频"
+    },
+    {
+      "name": "playlist_name_too_long",
+      "value": "已达到最大输入限制"
+    },
+    {
+      "name": "playlist_name_invalid_chars",
+      "value": "不支持空格及特殊字符 \\ / : * ? \" < > |"
+    },
+    {
+      "name": "playlist_delete_confirm_title",
+      "value": "确定删除此歌单列表吗？"
+    },
+    {
+      "name": "playlist_delete_playlists_confirm",
+      "value": "确定删除选中的 %d 个歌单列表吗？"
+    },
+    {
+      "name": "playlist_delete_tracks_confirm",
+      "value": "确定删除这%d项吗？"
+    },
+    {
+      "name": "playlist_selection_count",
+      "value": "已选择 %d 项"
+    },
+    {
+      "name": "playlist_selection_none",
+      "value": "未选择"
+    }
+  ]
+}

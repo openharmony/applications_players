@@ -1,0 +1,452 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "播放器应用模块"
+    },
+    {
+      "name": "MainAbility_desc",
+      "value": "主界面"
+    },
+    {
+      "name": "MainAbility_label",
+      "value": "媒体播放器"
+    },
+    {
+      "name": "file_access_reason",
+      "value": "用于访问和播放本地音频文件"
+    },
+    {
+      "name": "read_media_reason",
+      "value": "用于读取媒体文件"
+    },
+    {
+      "name": "read_write_download_reason",
+      "value": "用于访问下载目录中的媒体文件"
+    },
+    {
+      "name": "tab_home",
+      "value": "推荐"
+    },
+    {
+      "name": "tab_mine",
+      "value": "收藏"
+    },
+    {
+      "name": "music",
+      "value": "音乐"
+    },
+    {
+      "name": "video",
+      "value": "视频"
+    },
+    {
+      "name": "profile",
+      "value": "我的"
+    },
+    {
+      "name": "home",
+      "value": "首页"
+    },
+    {
+      "name": "playlist",
+      "value": "播放列表"
+    },
+    {
+      "name": "my_playlist",
+      "value": "我的歌单"
+    },
+    {
+      "name": "Song_List",
+      "value": "歌单列表"
+    },
+    {
+      "name": "unknown_file",
+      "value": "未知文件"
+    },
+    {
+      "name": "full_screen_mode",
+      "value": "全屏模式"
+    },
+    {
+      "name": "reason",
+      "value": "用于扫描和播放本机音视频文件"
+    },
+    {
+      "name": "permission_reason_read_audio",
+      "value": "用于扫描和播放本机音频文件"
+    },
+    {
+      "name": "permission_reason_write_audio",
+      "value": "用于管理本机音频文件"
+    },
+    {
+      "name": "permission_reason_read_imagevideo",
+      "value": "用于扫描和播放本机视频文件"
+    },
+    {
+      "name": "permission_reason_write_imagevideo",
+      "value": "用于管理本机视频文件"
+    },
+    {
+      "name": "permission_reason_internet",
+      "value": "用于访问网络媒体资源"
+    },
+    {
+      "name": "permission_reason_keep_background_running",
+      "value": "用于在后台继续导入或扫描媒体文件并展示进度"
+    },
+    {
+      "name": "settings_page_title",
+      "value": "显示设置"
+    },
+    {
+      "name": "settings_section_font_scale",
+      "value": "界面缩放"
+    },
+    {
+      "name": "settings_font_scale_hint",
+      "value": "拖动滑块调整列表与播放页字体大小，立即生效。"
+    },
+    {
+      "name": "import_media_files",
+      "value": "导入媒体文件"
+    },
+    {
+      "name": "filter_all",
+      "value": "全部"
+    },
+    {
+      "name": "audio",
+      "value": "音频"
+    },
+    {
+      "name": "menu_Scan_to_refresh",
+      "value": "扫描刷新"
+    },
+    {
+      "name": "menu_list_view",
+      "value": "列表视图"
+    },
+    {
+      "name": "menu_grid_view",
+      "value": "网格视图"
+    },
+    {
+      "name": "menu_sort",
+      "value": "排序"
+    },
+    {
+      "name": "menu_edit",
+      "value": "编辑"
+    },
+    {
+      "name": "menu_display_settings",
+      "value": "显示设置"
+    },
+    {
+      "name": "sort_dialog_title",
+      "value": "选择排序"
+    },
+    {
+      "name": "sort_by_name",
+      "value": "按名称"
+    },
+    {
+      "name": "sort_by_time",
+      "value": "按时间"
+    },
+    {
+      "name": "sort_by_size",
+      "value": "按大小"
+    },
+    {
+      "name": "media_empty_title",
+      "value": "暂无媒体文件"
+    },
+    {
+      "name": "media_empty_hint",
+      "value": "点击 '+' 导入本地文件"
+    },
+    {
+      "name": "media_import_unsupported",
+      "value": "已跳过不支持的文件，仅支持 mp4/mkv/ts 与 m4a/aac/mp3/ogg/wav/amr"
+    },
+    {
+      "name": "media_permission_tip",
+      "value": "部分媒体文件需要授权才能访问"
+    },
+    {
+      "name": "media_permission_tip_partial",
+      "value": "仍有媒体权限未开启，部分文件无法访问"
+    },
+    {
+      "name": "media_permission_grant",
+      "value": "授权"
+    },
+    {
+      "name": "media_loading",
+      "value": "加载中..."
+    },
+    {
+      "name": "media_select_all",
+      "value": "全选"
+    },
+    {
+      "name": "media_unselect_all",
+      "value": "取消全选"
+    },
+    {
+      "name": "media_delete",
+      "value": "删除"
+    },
+    {
+      "name": "media_selected_count",
+      "value": "已选 %d 项"
+    },
+    {
+      "name": "media_delete_confirm_title",
+      "value": "从列表移除"
+    },
+    {
+      "name": "media_delete_confirm_message",
+      "value": "确认从列表移除 %d 项？不会删除本地源文件。"
+    },
+    {
+      "name": "media_scanning_progress",
+      "value": "扫描中... %d/%d"
+    },
+    {
+      "name": "media_empty_audio",
+      "value": "暂无音频"
+    },
+    {
+      "name": "media_empty_video",
+      "value": "暂无视频"
+    },
+    {
+      "name": "media_empty_default_desc",
+      "value": "请将媒体文件放入应用目录"
+    },
+    {
+      "name": "cancel",
+      "value": "取消"
+    },
+    {
+      "name": "scanning_media_files",
+      "value": "正在扫描媒体文件"
+    },
+    {
+      "name": "importing_media_files",
+      "value": "正在导入媒体文件"
+    },
+    {
+      "name": "playlist_empty_title",
+      "value": "暂无歌单"
+    },
+    {
+      "name": "playlist_empty_hint",
+      "value": "点击右上角 按钮 创建第一个歌单列表"
+    },
+    {
+      "name": "playlist_create_new",
+      "value": "新建列表"
+    },
+    {
+      "name": "playlist_track_count",
+      "value": "%d 首"
+    },
+    {
+      "name": "permission_dialog_title",
+      "value": "需要存储权限"
+    },
+    {
+      "name": "permission_dialog_desc",
+      "value": "媒体播放器需要访问您的存储空间来扫描和播放本地媒体文件"
+    },
+    {
+      "name": "permission_feature_scan",
+      "value": "扫描手机中的音视频文件"
+    },
+    {
+      "name": "permission_feature_play",
+      "value": "播放本地视频和音频"
+    },
+    {
+      "name": "permission_feature_playlist",
+      "value": "管理媒体播放列表"
+    },
+    {
+      "name": "permission_grant_enter",
+      "value": "修改权限"
+    },
+    {
+      "name": "permission_deny",
+      "value": "关闭"
+    },
+    {
+      "name": "permission_sandbox",
+      "value": "暂不授权（沙箱）"
+    },
+    {
+      "name": "confirm",
+      "value": "确定"
+    },
+    {
+      "name": "delete",
+      "value": "删除"
+    },
+    {
+      "name": "playlist_create_dialog_title",
+      "value": "新建歌单列表名称"
+    },
+    {
+      "name": "playlist_rename_dialog_title",
+      "value": "重命名歌单列表名称"
+    },
+    {
+      "name": "playlist_name_placeholder",
+      "value": "输入名称"
+    },
+    {
+      "name": "playlist_menu_play",
+      "value": "播放"
+    },
+    {
+      "name": "playlist_menu_add_to_queue",
+      "value": "加入播放列表"
+    },
+    {
+      "name": "playlist_menu_add_to",
+      "value": "添加到"
+    },
+    {
+      "name": "playlist_menu_rename",
+      "value": "重命名"
+    },
+    {
+      "name": "playlist_menu_select",
+      "value": "选择"
+    },
+    {
+      "name": "playlist_menu_open",
+      "value": "进入播放列表"
+    },
+    {
+      "name": "playlist_menu_detail",
+      "value": "详情"
+    },
+    {
+      "name": "playlist_play_all",
+      "value": "播放全部 %d"
+    },
+    {
+      "name": "playlist_resume_prefix",
+      "value": "继续播放："
+    },
+    {
+      "name": "playlist_detail_empty_title",
+      "value": "列表为空"
+    },
+    {
+      "name": "playlist_detail_empty_hint",
+      "value": "点击右上角 按钮 添加音频文件"
+    },
+    {
+      "name": "playlist_add_audio_title",
+      "value": "添加音频"
+    },
+    {
+      "name": "playlist_search_audio",
+      "value": "搜索音频"
+    },
+    {
+      "name": "search_button",
+      "value": "搜索"
+    },
+    {
+      "name": "playlist_add_audio_empty",
+      "value": "暂无可添加的音频"
+    },
+    {
+      "name": "playlist_add_success",
+      "value": "已添加到播放列表"
+    },
+    {
+      "name": "playlist_add_duplicate",
+      "value": "该音频已在列表中"
+    },
+    {
+      "name": "playlist_already_added",
+      "value": "已添加"
+    },
+    {
+      "name": "playlist_play_empty",
+      "value": "播放列表为空，请先添加音频"
+    },
+    {
+      "name": "playlist_name_too_long",
+      "value": "已达到最大输入限制"
+    },
+    {
+      "name": "playlist_name_invalid_chars",
+      "value": "不支持空格及特殊字符 \\ / : * ? \" < > |"
+    },
+    {
+      "name": "playlist_delete_confirm_title",
+      "value": "确定删除此歌单列表吗？"
+    },
+    {
+      "name": "playlist_delete_playlists_confirm",
+      "value": "确定删除选中的 %d 个歌单列表吗？"
+    },
+    {
+      "name": "playlist_delete_tracks_confirm",
+      "value": "确定删除这%d项吗？"
+    },
+    {
+      "name": "playlist_selection_count",
+      "value": "已选择 %d 项"
+    },
+    {
+      "name": "playlist_selection_none",
+      "value": "未选择"
+    },
+    {
+      "name": "profile_user_name",
+      "value": "极光用户"
+    },
+    {
+      "name": "profile_user_id",
+      "value": "ID: %s"
+    },
+    {
+      "name": "profile_menu_settings",
+      "value": "设置"
+    },
+    {
+      "name": "profile_menu_history",
+      "value": "播放历史"
+    },
+    {
+      "name": "profile_menu_liked",
+      "value": "我喜欢的"
+    },
+    {
+      "name": "profile_menu_downloads",
+      "value": "下载管理"
+    },
+    {
+      "name": "profile_menu_share_app",
+      "value": "分享应用"
+    },
+    {
+      "name": "profile_menu_about_us",
+      "value": "关于我们"
+    },
+    {
+      "name": "progress",
+      "value": "进度: %s"
+    }
+  ]
+}

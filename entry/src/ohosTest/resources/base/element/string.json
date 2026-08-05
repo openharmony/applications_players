@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "entry_test_desc",
+      "value": "File Listener Test Module"
+    },
+    {
+      "name": "TestAbility_desc",
+      "value": "Test Ability for File Listener"
+    },
+    {
+      "name": "TestAbility_label",
+      "value": "FileListener Test"
+    }
+  ]
+}

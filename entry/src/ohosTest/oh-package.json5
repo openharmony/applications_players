@@ -1,0 +1,11 @@
+{
+  "name": "phone_test",
+  "version": "1.0.0",
+  "description": "ohosTest module for phone",
+  "main": "",
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@ohos/hypium": "1.0.6"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "string": [
+    {
+      "name": "search_placeholder",
+      "value": "Search files"
+    },
+    {
+      "name": "search_button",
+      "value": "Search"
+    },
+    {
+      "name": "search_history_title",
+      "value": "Search History"
+    },
+    {
+      "name": "search_quick_title",
+      "value": "Quick Search"
+    },
+    {
+      "name": "search_history_empty",
+      "value": "No search history"
+    },
+    {
+      "name": "search_result_count",
+      "value": "%d result(s) found"
+    },
+    {
+      "name": "search_section_audio",
+      "value": "Audio"
+    },
+    {
+      "name": "search_section_video",
+      "value": "Video"
+    },
+    {
+      "name": "searching",
+      "value": "Searching..."
+    },
+    {
+      "name": "search_no_audio_title",
+      "value": "No audio found"
+    },
+    {
+      "name": "search_no_audio_desc",
+      "value": "No media found containing \"%s\""
+    }
+  ]
+}

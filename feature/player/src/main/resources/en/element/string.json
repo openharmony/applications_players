@@ -1,0 +1,1009 @@
+{
+  "string": [
+    {
+      "name": "loading",
+      "value": "Loading...",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "preview_failed",
+      "value": "Preview failed",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "unknown_file",
+      "value": "Unknown File",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "MainAbility",
+      "value": "File Preview",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "shrink_title",
+      "value": "Shrink",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "amplify_title",
+      "value": "Enlarge",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "rotate_title",
+      "value": "Rotate",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "pip_title",
+      "value": "Picture in Picture",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "share_title",
+      "value": "Share",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "def_app_show",
+      "value": "Open with %s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "file_last_modified",
+      "value": "Last modified: %s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "copy_text",
+      "value": "Copy",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "copy_shortcut",
+      "value": "Ctrl+C"
+    },
+    {
+      "name": "cancel_text",
+      "value": "Cancel",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "more_title",
+      "value": "More",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "about_menu",
+      "value": "About",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "list_file",
+      "value": "File",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "open_other_application",
+      "value": "Open with another app",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "mark",
+      "value": "Annotate",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "sidebar",
+      "value": "Sidebar",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "save",
+      "value": "Save",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "search",
+      "value": "Search",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "encrypted_file",
+      "value": "Encrypted file",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "red",
+      "value": "Red",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "yellow",
+      "value": "Yellow",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "green",
+      "value": "Green",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "blue",
+      "value": "Blue",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "cyan",
+      "value": "Cyan",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "purple",
+      "value": "Purple",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "highlight",
+      "value": "Highlight",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "underline",
+      "value": "Underline",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "strikeout",
+      "value": "Strikethrough",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "single_page_view",
+      "value": "Single Page View",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "double_page_view",
+      "value": "Double Page View",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "continuous_scrolling",
+      "value": "Continuous Scrolling",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "input_password",
+      "value": "Please enter the file password",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "file_encrypted",
+      "value": "This file is password protected. Please enter the password.",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "wrong_password",
+      "value": "Incorrect password",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "ok",
+      "value": "OK",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "save_change",
+      "value": "Save changes?",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "not_save",
+      "value": "Don't Save",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "show_sidebar",
+      "value": "Show Sidebar",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "previous_page",
+      "value": "Previous Page",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "next_page",
+      "value": "Next Page",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "clean_highlight_color",
+      "value": "Clear Highlight",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "clean_underline",
+      "value": "Clear Underline",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "clean_strikeout",
+      "value": "Clear Strikethrough",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "replace_highlight_color",
+      "value": "Replace Highlight",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "password",
+      "value": "Password",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "search_result_none",
+      "value": "Search complete. No matches found.",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "return",
+      "value": "Back",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "open_location",
+      "value": "Open file location",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "full_screen",
+      "value": "Full Screen",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "exit_full_screen",
+      "value": "Exit Full Screen",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "save_as",
+      "value": "Save As",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "file_details",
+      "value": "File Details",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "file_parse_failure_tips",
+      "value": "Unsupported format or file corrupted. Try opening it with another app.",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "print",
+      "value": "Print",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "details",
+      "value": "\"%s\" details",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "full_screen_mode",
+      "value": "Full Screen Mode",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "file_information",
+      "value": "Details",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "detail_name",
+      "value": "File name: %s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "detail_size",
+      "value": "File size: %s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "detail_modified_time",
+      "value": "Modified time: %s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "detail_position",
+      "value": "Path: %s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "midnight",
+      "value": "%1$s Midnight %2$s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "before_dawn",
+      "value": "%1$s Before Dawn %2$s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "dawn",
+      "value": "%1$s Dawn %2$s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "early_morning",
+      "value": "%1$s Early Morning %2$s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "morning",
+      "value": "%1$s Morning %2$s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "noon",
+      "value": "%1$s Noon %2$s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "afternoon",
+      "value": "%1$s Afternoon %2$s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "dusk",
+      "value": "%1$s Dusk %2$s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "evening",
+      "value": "%1$s Evening %2$s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "detail_resolution",
+      "value": "Resolution: %s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "the_previous",
+      "value": "Previous",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "the_next",
+      "value": "Next",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "play",
+      "value": "Play",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "pause",
+      "value": "Pause",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "skip_forward_30_seconds",
+      "value": "Forward %d sec",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "skip_backward_10_seconds",
+      "value": "Backward %d sec",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "speed",
+      "value": "Speed",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "close_loop",
+      "value": "Loop Off",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "single_loop",
+      "value": "Single Loop",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "current_play_time",
+      "value": "Current play time: %1$s %2$s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "playback_progress",
+      "value": "Playback progress: %1$s %2$s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "current_selected_speed",
+      "value": "Selected: %1$s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "overall_play_time",
+      "value": "Total duration: %1$s %2$s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "information",
+      "value": "Info",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "frame_rate",
+      "value": "Frame rate: %s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "duration",
+      "value": "Duration: %s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "file_not_exist",
+      "value": "The file may have been moved or renamed",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "source_file_missing",
+      "value": "Source file does not exist and cannot be played",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "source_file_open_failed",
+      "value": "Failed to open the file. Please try again later",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "source_file_unavailable",
+      "value": "Unable to open the file. Please check whether it is available",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "clear_search_content",
+      "value": "Clear search content",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "search_options",
+      "value": "Search options",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "fast_forwarding",
+      "value": "%s fast forwarding",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "open_menu_bar",
+      "value": "Open menu bar",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "collapse_menu_bar",
+      "value": "Collapse menu bar",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "volume",
+      "value": "Volume",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "mute_voice",
+      "value": "Mute",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "unmute_voice",
+      "value": "Unmute",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "brightness",
+      "value": "Brightness",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "image",
+      "value": "Image",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "video",
+      "value": "Video",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "current_play_time_hms",
+      "value": "Current play time %1$s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "playback_progress_hms",
+      "value": "Playback progress %1$s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "overall_play_time_hms",
+      "value": "Total duration %1$s",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "gallery",
+      "value": "Gallery",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "samba_folder_read_only_permission",
+      "value": "This directory is read-only. Operation not supported.",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "operate_failed",
+      "value": "Operation failed",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "confirm",
+      "value": "Confirm",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "saving_media",
+      "value": "Saving...",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "document_compare_same_file",
+      "value": "This file is already open",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "change_details",
+      "value": "Change details",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "image_reverse_rotation",
+      "value": "Image rotated counterclockwise by %d degrees",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "loop",
+      "value": "Loop",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_tab_current",
+      "value": "Now Playing",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_tab_history",
+      "value": "History",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_empty",
+      "value": "No playback queue",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_history_placeholder",
+      "value": "History playback is coming soon",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_history_empty",
+      "value": "No playback history",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_history_card_title",
+      "value": "Playlist %d tracks",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_history_card_title_named",
+      "value": "Playlist: %s %d tracks",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_sheet_title",
+      "value": "Playlist",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_source_playlist",
+      "value": "「From: %s」",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_source_library",
+      "value": "「From: Media Library」",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_list_loop",
+      "value": "List Loop",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_smart_transition",
+      "value": "Smart Transition",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_mode_single_loop",
+      "value": "Single Track Loop",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_mode_shuffle",
+      "value": "Shuffle",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_mode_list_loop",
+      "value": "List Loop",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_media_type_audio",
+      "value": "Audio",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_media_type_video",
+      "value": "Video",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "video_screen_lock",
+      "value": "Lock screen",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "video_screen_unlock",
+      "value": "Unlock screen",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "video_screen_locked_hint",
+      "value": "Screen locked",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_unknown_artist",
+      "value": "Unknown Artist",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_cancel",
+      "value": "Cancel",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_delete_confirm",
+      "value": "Delete the selected %d songs?",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_delete_selected",
+      "value": "Delete",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_selection_count",
+      "value": "%d selected",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_selection_none",
+      "value": "None selected",
+      "attr": {
+        "priority": "translate"
+      }
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "player",
+  "version": "1.0.0",
+  "description": "Audio/video playback feature module",
+  "main": "index.ets",
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@ohos/common": "file:../../common"
+  }
+}

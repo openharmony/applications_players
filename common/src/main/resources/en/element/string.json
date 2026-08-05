@@ -1,0 +1,88 @@
+{
+  "string": [
+    {
+      "name": "recent",
+      "value": "Recent",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "recent_delete",
+      "value": "Recycle Bin",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "yesterday",
+      "value": "Yesterday",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "sort_by_name",
+      "value": "Sort by Name",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "sort_by_time",
+      "value": "Sort by Time",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "sort_by_size",
+      "value": "Sort by Size",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "sort_by_type",
+      "value": "Sort by Type",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "pc_appdata",
+      "value": "App Data",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "pc_desktop",
+      "value": "Desktop",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "pc_documents",
+      "value": "Documents",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "pc_downloads",
+      "value": "Downloads",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "pc_images",
+      "value": "Pictures",
+      "attr": {
+        "priority": "translate"
+      }
+    }
+  ]
+}

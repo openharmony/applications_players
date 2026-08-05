@@ -1,0 +1,22 @@
+{
+  "name": "players",
+  "version": "1.0.0",
+  "description": "OpenHarmony音乐播放器应用",
+  "main": "",
+  "author": "",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "hvigor build",
+    "clean": "hvigor clean",
+    "debug": "hvigor debug"
+  },
+  "dependencies": {
+  },
+  "devDependencies": {
+    "@ohos/hvigor": "6.0.2",
+    "@ohos/hvigor-ohos-plugin": "6.0.2"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

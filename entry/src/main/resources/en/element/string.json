@@ -1,0 +1,452 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "Player app module"
+    },
+    {
+      "name": "MainAbility_desc",
+      "value": "Main page"
+    },
+    {
+      "name": "MainAbility_label",
+      "value": "Music Player"
+    },
+    {
+      "name": "file_access_reason",
+      "value": "Used to access and play local audio files"
+    },
+    {
+      "name": "read_media_reason",
+      "value": "Used to read media files"
+    },
+    {
+      "name": "read_write_download_reason",
+      "value": "Used to access media files in Downloads"
+    },
+    {
+      "name": "tab_home",
+      "value": "Home"
+    },
+    {
+      "name": "tab_mine",
+      "value": "Favorites"
+    },
+    {
+      "name": "music",
+      "value": "Music"
+    },
+    {
+      "name": "video",
+      "value": "Video"
+    },
+    {
+      "name": "profile",
+      "value": "Me"
+    },
+    {
+      "name": "home",
+      "value": "Home"
+    },
+    {
+      "name": "playlist",
+      "value": "Playlist"
+    },
+    {
+      "name": "my_playlist",
+      "value": "My Playlists"
+    },
+    {
+      "name": "Song_List",
+      "value": "Playlist List"
+    },
+    {
+      "name": "unknown_file",
+      "value": "Unknown File"
+    },
+    {
+      "name": "full_screen_mode",
+      "value": "Full Screen Mode"
+    },
+    {
+      "name": "reason",
+      "value": "Used to scan and play local audio and video files"
+    },
+    {
+      "name": "permission_reason_read_audio",
+      "value": "Used to scan and play local audio files"
+    },
+    {
+      "name": "permission_reason_write_audio",
+      "value": "Used to manage local audio files"
+    },
+    {
+      "name": "permission_reason_read_imagevideo",
+      "value": "Used to scan and play local video files"
+    },
+    {
+      "name": "permission_reason_write_imagevideo",
+      "value": "Used to manage local video files"
+    },
+    {
+      "name": "permission_reason_internet",
+      "value": "Used to access online media resources"
+    },
+    {
+      "name": "settings_page_title",
+      "value": "Display Settings"
+    },
+    {
+      "name": "settings_section_font_scale",
+      "value": "UI Scale"
+    },
+    {
+      "name": "settings_font_scale_hint",
+      "value": "Drag the slider to adjust list and player font size. Changes apply immediately."
+    },
+    {
+      "name": "permission_reason_keep_background_running",
+      "value": "Used to keep importing or scanning media files in the background and show the progress"
+    },
+    {
+      "name": "import_media_files",
+      "value": "Import Media Files"
+    },
+    {
+      "name": "filter_all",
+      "value": "All"
+    },
+    {
+      "name": "audio",
+      "value": "Audio"
+    },
+    {
+      "name": "menu_Scan_to_refresh",
+      "value": "Refresh"
+    },
+    {
+      "name": "menu_list_view",
+      "value": "List View"
+    },
+    {
+      "name": "menu_grid_view",
+      "value": "Grid View"
+    },
+    {
+      "name": "menu_sort",
+      "value": "Sort"
+    },
+    {
+      "name": "menu_edit",
+      "value": "Edit"
+    },
+    {
+      "name": "menu_display_settings",
+      "value": "Display Settings"
+    },
+    {
+      "name": "sort_dialog_title",
+      "value": "Select Sorting"
+    },
+    {
+      "name": "sort_by_name",
+      "value": "By Name"
+    },
+    {
+      "name": "sort_by_time",
+      "value": "By Time"
+    },
+    {
+      "name": "sort_by_size",
+      "value": "By Size"
+    },
+    {
+      "name": "media_empty_title",
+      "value": "No Media Files"
+    },
+    {
+      "name": "media_empty_hint",
+      "value": "Tap '+' to import local files"
+    },
+    {
+      "name": "media_import_unsupported",
+      "value": "Unsupported media file format"
+    },
+    {
+      "name": "media_permission_tip",
+      "value": "Some media files require permission to access"
+    },
+    {
+      "name": "media_permission_tip_partial",
+      "value": "Some media permissions are still off; some files may be unavailable"
+    },
+    {
+      "name": "media_permission_grant",
+      "value": "Grant"
+    },
+    {
+      "name": "media_loading",
+      "value": "Loading..."
+    },
+    {
+      "name": "media_select_all",
+      "value": "Select All"
+    },
+    {
+      "name": "media_unselect_all",
+      "value": "Deselect All"
+    },
+    {
+      "name": "media_delete",
+      "value": "Delete"
+    },
+    {
+      "name": "media_selected_count",
+      "value": "%d selected"
+    },
+    {
+      "name": "media_delete_confirm_title",
+      "value": "Remove from List"
+    },
+    {
+      "name": "media_delete_confirm_message",
+      "value": "Remove %d item(s) from the list? Local source files will not be deleted."
+    },
+    {
+      "name": "media_scanning_progress",
+      "value": "Scanning... %d/%d"
+    },
+    {
+      "name": "media_empty_audio",
+      "value": "No Audio"
+    },
+    {
+      "name": "media_empty_video",
+      "value": "No Video"
+    },
+    {
+      "name": "media_empty_default_desc",
+      "value": "Please place media files in the app directory"
+    },
+    {
+      "name": "cancel",
+      "value": "Cancel"
+    },
+    {
+      "name": "scanning_media_files",
+      "value": "Scanning media files"
+    },
+    {
+      "name": "importing_media_files",
+      "value": "Importing media files..."
+    },
+    {
+      "name": "playlist_empty_title",
+      "value": "No Playlists"
+    },
+    {
+      "name": "playlist_empty_hint",
+      "value": "Tap + in the top-right corner to create  first playlist"
+    },
+    {
+      "name": "playlist_create_new",
+      "value": "New Playlist"
+    },
+    {
+      "name": "playlist_track_count",
+      "value": "%d tracks"
+    },
+    {
+      "name": "permission_dialog_title",
+      "value": "Storage Permission Required"
+    },
+    {
+      "name": "permission_dialog_desc",
+      "value": "The media player needs access to your storage to scan and play local media files"
+    },
+    {
+      "name": "permission_feature_scan",
+      "value": "Scan audio and video files on this device"
+    },
+    {
+      "name": "permission_feature_play",
+      "value": "Play local video and audio"
+    },
+    {
+      "name": "permission_feature_playlist",
+      "value": "Manage media playlists"
+    },
+    {
+      "name": "permission_grant_enter",
+      "value": "Change Permissions"
+    },
+    {
+      "name": "permission_deny",
+      "value": "Close"
+    },
+    {
+      "name": "permission_sandbox",
+      "value": "Not Now (Sandbox)"
+    },
+    {
+      "name": "confirm",
+      "value": "Confirm"
+    },
+    {
+      "name": "delete",
+      "value": "Delete"
+    },
+    {
+      "name": "playlist_create_dialog_title",
+      "value": "New Playlist Name"
+    },
+    {
+      "name": "playlist_rename_dialog_title",
+      "value": "Rename the playlist name"
+    },
+    {
+      "name": "playlist_name_placeholder",
+      "value": "Enter name"
+    },
+    {
+      "name": "playlist_menu_play",
+      "value": "Play"
+    },
+    {
+      "name": "playlist_menu_add_to_queue",
+      "value": "Add to Playlist"
+    },
+    {
+      "name": "playlist_menu_add_to",
+      "value": "Add To"
+    },
+    {
+      "name": "playlist_menu_rename",
+      "value": "Rename"
+    },
+    {
+      "name": "playlist_menu_select",
+      "value": "Select"
+    },
+    {
+      "name": "playlist_menu_open",
+      "value": "Open Playlist"
+    },
+    {
+      "name": "playlist_menu_detail",
+      "value": "Details"
+    },
+    {
+      "name": "playlist_play_all",
+      "value": "Play All %d"
+    },
+    {
+      "name": "playlist_resume_prefix",
+      "value": "Continue: "
+    },
+    {
+      "name": "playlist_detail_empty_title",
+      "value": "List Is Empty"
+    },
+    {
+      "name": "playlist_detail_empty_hint",
+      "value": "Tap the + button in the top-right corner to add audio files"
+    },
+    {
+      "name": "playlist_add_audio_title",
+      "value": "Add Audio"
+    },
+    {
+      "name": "playlist_search_audio",
+      "value": "Search Audio"
+    },
+    {
+      "name": "search_button",
+      "value": "Search"
+    },
+    {
+      "name": "playlist_add_audio_empty",
+      "value": "No Audio Available to Add"
+    },
+    {
+      "name": "playlist_add_success",
+      "value": "Added to playlist"
+    },
+    {
+      "name": "playlist_add_duplicate",
+      "value": "This audio is already in the playlist"
+    },
+    {
+      "name": "playlist_already_added",
+      "value": "Added"
+    },
+    {
+      "name": "playlist_play_empty",
+      "value": "The playlist is empty. Add audio first."
+    },
+    {
+      "name": "playlist_name_too_long",
+      "value": "The input has reached its max limit"
+    },
+    {
+      "name": "playlist_name_invalid_chars",
+      "value": "Spaces and special characters \\ / : * ? \" < > | are not supported."
+    },
+    {
+      "name": "playlist_delete_confirm_title",
+      "value": "Delete this playlist?"
+    },
+    {
+      "name": "playlist_delete_playlists_confirm",
+      "value": "Delete the selected %d playlists?"
+    },
+    {
+      "name": "playlist_delete_tracks_confirm",
+      "value": "Delete these %d item(s)?"
+    },
+    {
+      "name": "playlist_selection_count",
+      "value": "%d selected"
+    },
+    {
+      "name": "playlist_selection_none",
+      "value": "None selected"
+    },
+    {
+      "name": "profile_user_name",
+      "value": "Aurora User"
+    },
+    {
+      "name": "profile_user_id",
+      "value": "ID: %s"
+    },
+    {
+      "name": "profile_menu_settings",
+      "value": "Settings"
+    },
+    {
+      "name": "profile_menu_history",
+      "value": "Playback History"
+    },
+    {
+      "name": "profile_menu_liked",
+      "value": "Liked"
+    },
+    {
+      "name": "profile_menu_downloads",
+      "value": "Downloads"
+    },
+    {
+      "name": "profile_menu_share_app",
+      "value": "Share App"
+    },
+    {
+      "name": "profile_menu_about_us",
+      "value": "About Us"
+    },
+    {
+      "name": "progress",
+      "value": "progress: %s"
+    }
+  ]
+}

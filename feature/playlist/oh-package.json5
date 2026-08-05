@@ -1,0 +1,11 @@
+{
+  "name": "playlist",
+  "version": "1.0.0",
+  "description": "Playlist management feature module",
+  "main": "index.ets",
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@ohos/common": "file:../../common"
+  }
+}

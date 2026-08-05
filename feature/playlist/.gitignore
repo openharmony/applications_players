@@ -1,0 +1,13 @@
+# Ignore files
+*.iml
+.idea/
+.DS_Store
+node_modules/
+.ohpm/
+build/
+local.properties
+hvigor/
+hvigor-config.json5
+hvigor-wrapper.js
+.ignores
+.abc/

@@ -1,0 +1,1009 @@
+{
+  "string":[
+    {
+      "name":"loading",
+      "value":"正在加载…",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"preview_failed",
+      "value":"预览失败",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"unknown_file",
+      "value":"未知文件",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"MainAbility",
+      "value":"文件预览",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"shrink_title",
+      "value":"缩小",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"amplify_title",
+      "value":"放大",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"rotate_title",
+      "value":"旋转",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"pip_title",
+      "value":"画中画",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"share_title",
+      "value":"分享",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"def_app_show",
+      "value":"使用%s打开",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"file_last_modified",
+      "value":"上次修改时间：%s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"copy_text",
+      "value":"复制",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"copy_shortcut",
+      "value":"Ctrl+C"
+    },
+    {
+      "name":"cancel_text",
+      "value":"取消",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"more_title",
+      "value":"更多",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"about_menu",
+      "value":"关于",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"list_file",
+      "value":"文件",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"open_other_application",
+      "value":"使用其他应用打开",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"mark",
+      "value":"批注",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"sidebar",
+      "value":"侧边栏",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"save",
+      "value":"保存",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"search",
+      "value":"搜索",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"encrypted_file",
+      "value":"加密文件",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"red",
+      "value":"红色",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"yellow",
+      "value":"黄色",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"green",
+      "value":"绿色",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"blue",
+      "value":"蓝色",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"cyan",
+      "value":"青色",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"purple",
+      "value":"紫色",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"highlight",
+      "value":"高亮色",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"underline",
+      "value":"下划线",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"strikeout",
+      "value":"删除线",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"single_page_view",
+      "value":"单页视图",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"double_page_view",
+      "value":"双页视图",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"continuous_scrolling",
+      "value":"连续滚动",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"input_password",
+      "value":"请输入文件密码",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"file_encrypted",
+      "value":"该文件已被密码保护，请输入文件密码。",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"wrong_password",
+      "value":"密码错误",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"ok",
+      "value":"确定",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"save_change",
+      "value":"是否保存更改?",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"not_save",
+      "value":"不保存",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"show_sidebar",
+      "value":"显示侧边栏",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"previous_page",
+      "value":"上一页",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"next_page",
+      "value":"下一页",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"clean_highlight_color",
+      "value":"清除高亮色",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"clean_underline",
+      "value":"清除下划线",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"clean_strikeout",
+      "value":"清除删除线",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"replace_highlight_color",
+      "value":"替换高亮色",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"password",
+      "value":"密码",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"search_result_none",
+      "value":"已完成全文搜索，未找到匹配项",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"return",
+      "value":"返回",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"open_location",
+      "value":"打开文件所在位置",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"full_screen",
+      "value":"全屏",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"exit_full_screen",
+      "value":"退出全屏",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"save_as",
+      "value":"另存为",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"file_details",
+      "value":"文件详情",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"file_parse_failure_tips",
+      "value":"格式不支持或文件损坏，请您尝试使用其他应用打开",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"print",
+      "value":"打印",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"details",
+      "value":"“%s”详情",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"full_screen_mode",
+      "value":"全屏模式",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"file_information",
+      "value":"详情",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"detail_name",
+      "value":"文件名称：%s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"detail_size",
+      "value":"文件大小：%s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"detail_modified_time",
+      "value":"修改时间：%s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"detail_position",
+      "value":"路径：%s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"midnight",
+      "value":"%1$s 半夜%2$s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"before_dawn",
+      "value":"%1$s 凌晨%2$s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"dawn",
+      "value":"%1$s 清晨%2$s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"early_morning",
+      "value":"%1$s 早上%2$s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"morning",
+      "value":"%1$s 上午%2$s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"noon",
+      "value":"%1$s 中午%2$s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"afternoon",
+      "value":"%1$s 下午%2$s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"dusk",
+      "value":"%1$s 傍晚%2$s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"evening",
+      "value":"%1$s 晚上%2$s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"detail_resolution",
+      "value":"分辨率：%s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"the_previous",
+      "value":"上一个",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"the_next",
+      "value":"下一个",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"play",
+      "value":"播放",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"pause",
+      "value":"暂停",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"skip_forward_30_seconds",
+      "value":"快进 %d 秒",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"skip_backward_10_seconds",
+      "value":"快退 %d 秒",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"speed",
+      "value":"倍速",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"close_loop",
+      "value":"循环关闭",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"single_loop",
+      "value":"单片循环",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"current_play_time",
+      "value":"目前播放时长：%1$s %2$s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"playback_progress",
+      "value":"播放进度：%1$s %2$s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"current_selected_speed",
+      "value":"已选中，%1$s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"overall_play_time",
+      "value":"总时长：%1$s %2$s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"information",
+      "value":"信息",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"frame_rate",
+      "value":"帧速率：%s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"duration",
+      "value":"时长：%s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"file_not_exist",
+      "value":"该文件可能已移动或重命名",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"source_file_missing",
+      "value":"源文件不存在，无法播放",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"source_file_open_failed",
+      "value":"文件打开失败，请稍后重试",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"source_file_unavailable",
+      "value":"无法打开文件，请确认文件是否可用",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"clear_search_content",
+      "value":"清除搜索内容",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"search_options",
+      "value":"搜索选项",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"fast_forwarding",
+      "value":"%s 快进中",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"open_menu_bar",
+      "value":"打开菜单栏",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"collapse_menu_bar",
+      "value":"收起菜单栏",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"volume",
+      "value":"音量",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"mute_voice",
+      "value":"静音",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"unmute_voice",
+      "value":"取消静音",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"brightness",
+      "value":"亮度",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"image",
+      "value":"图片",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"video",
+      "value":"视频",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"video_screen_lock",
+      "value":"锁定屏幕",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"video_screen_unlock",
+      "value":"解锁屏幕",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"video_screen_locked_hint",
+      "value":"屏幕已锁定",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"current_play_time_hms",
+      "value":"目前播放时长 %1$s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"playback_progress_hms",
+      "value":"播放进度 %1$s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"overall_play_time_hms",
+      "value":"总时长 %1$s",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"gallery",
+      "value":"图库",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"samba_folder_read_only_permission",
+      "value":"该目录为只读目录，不支持此操作。",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"operate_failed",
+      "value":"操作失败",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"confirm",
+      "value":"确认",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"saving_media",
+      "value":"正在保存…",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"document_compare_same_file",
+      "value":"当前文件已打开",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"change_details",
+      "value":"变更详情",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name":"image_reverse_rotation",
+      "value":"图片已逆时针旋转 %d 度",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name": "loop",
+      "value":"循环",
+      "attr":{
+        "priority":"translate"
+      }
+    },
+    {
+      "name": "player_queue_tab_current",
+      "value": "当前播放",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_tab_history",
+      "value": "历史播放",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_empty",
+      "value": "暂无播放队列",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_history_placeholder",
+      "value": "历史播放功能即将上线",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_history_empty",
+      "value": "暂无最近播放",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_history_card_title",
+      "value": "歌单 %d首",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_history_card_title_named",
+      "value": "歌单：%s %d首",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_sheet_title",
+      "value": "播放列表",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_source_playlist",
+      "value": "「来自：%s」",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_source_library",
+      "value": "「来自：媒体库」",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_list_loop",
+      "value": "列表循环",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_smart_transition",
+      "value": "智能过渡",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_mode_single_loop",
+      "value": "单曲循环",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_mode_shuffle",
+      "value": "随机播放",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_mode_list_loop",
+      "value": "列表循环",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_media_type_audio",
+      "value": "音频",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_media_type_video",
+      "value": "视频",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_unknown_artist",
+      "value": "未知艺术家",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_selection_none",
+      "value": "请选择",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_selection_count",
+      "value": "已选 %d 首",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_delete_selected",
+      "value": "删除",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_delete_confirm",
+      "value": "确定删除已选的 %d 首歌曲？",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "player_queue_cancel",
+      "value": "取消",
+      "attr": {
+        "priority": "translate"
+      }
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "string": [
+    {
+      "name": "recent",
+      "value": "最近",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "recent_delete",
+      "value": "删除",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "yesterday",
+      "value": "昨天",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "sort_by_name",
+      "value": "按名称",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "sort_by_time",
+      "value": "按时间",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "sort_by_size",
+      "value": "按大小",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "sort_by_type",
+      "value": "按类型",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "pc_appdata",
+      "value": "应用数据",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "pc_desktop",
+      "value": "桌面",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "pc_documents",
+      "value": "文档",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "pc_downloads",
+      "value": "下载",
+      "attr": {
+        "priority": "translate"
+      }
+    },
+    {
+      "name": "pc_images",
+      "value": "图片",
+      "attr": {
+        "priority": "translate"
+      }
+    }
+  ]
+}

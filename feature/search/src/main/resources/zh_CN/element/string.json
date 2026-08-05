@@ -1,0 +1,48 @@
+{
+  "string": [
+    {
+      "name": "search_placeholder",
+      "value": "搜索文件"
+    },
+    {
+      "name": "search_button",
+      "value": "搜索"
+    },
+    {
+      "name": "search_history_title",
+      "value": "搜索历史"
+    },
+    {
+      "name": "search_quick_title",
+      "value": "快捷搜索"
+    },
+    {
+      "name": "search_history_empty",
+      "value": "暂无搜索记录"
+    },
+    {
+      "name": "search_result_count",
+      "value": "找到%d个结果"
+    },
+    {
+      "name": "search_section_audio",
+      "value": "音频"
+    },
+    {
+      "name": "search_section_video",
+      "value": "视频"
+    },
+    {
+      "name": "searching",
+      "value": "正在搜索..."
+    },
+    {
+      "name": "search_no_audio_title",
+      "value": "未找到音频"
+    },
+    {
+      "name": "search_no_audio_desc",
+      "value": "未找到包含\"%s\"的媒体"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "media",
+  "version": "1.0.0",
+  "description": "Media list browsing feature module",
+  "main": "./src/main/ets/Index.ets",
+  "dependencies": {
+    "@ohos/common": "file:../../common"
+  }
+}

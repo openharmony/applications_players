@@ -1,0 +1,16 @@
+{
+  "name": "phone",
+  "version": "1.0.0",
+  "description": "Application entry, product module",
+  "main": "",
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@ohos/common": "file:../common",
+    "@ohos/player": "file:../feature/player",
+    "@ohos/search": "file:../feature/search",
+    "@ohos/media": "file:../feature/media",
+    "@ohos/playlist": "file:../feature/playlist",
+    "@ohos/hypium": "1.0.6"
+  }
+}

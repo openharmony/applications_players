@@ -335,7 +335,7 @@ applications_players
 │  ├─player/                            # 音视频播放
 │  │  └─src/main/ets/
 │  │     ├─pages/                       # 音频播放页、视频播放页
-│  │     ├─component/                   # 播放器组件，包括迷你播放条、视频播放器等
+│  │     ├─component/                   # 视频播放器等播放器组件
 │  │     ├─controller/                  # 播放控制，包括音频/视频/通用播放控制器
 │  │     ├─session/                     # AVSession 媒体会话与后台播放管理
 │  │     ├─viewmodel/                   # 视频播放与画中画业务编排

@@ -97,7 +97,7 @@ By scenario:
 |------|---------------------------|
 | User plays audio/video via File Manager "Open with" | When the user selects an audio/video file in File Manager and chooses "Open with → Player", File Manager launches this app's MainAbility via Want carrying the file URI; Player parses the URI, enters the corresponding playback page, and starts playing |
 | Control center playback control | While Player is playing, the user pulls down the control center from the status bar; Player has registered a media session with the system via AVSession beforehand, and the control center reads that session's playback info and sends play, pause, and skip commands back to this app via session callbacks |
-| Lock screen card playback control | While Player is playing, the user locks the screen; the lock screen app also reads this app's session info via AVSession, showing cover art and playback buttons, and the user's actions are passed back to this app via session callbacks for execution |
+| Lock screen card playback control | While Player is playing, the user locks the screen; the lock screen app also reads this app's session info via AVSession, showing playback buttons, and the user's actions are passed back to this app via session callbacks for execution |
 | Background audio playback | After the user plays audio and switches to another app, this app continues outputting audio in the background using a background keep-alive permission; it also continuously reports playback state via AVSession, and the notification bar shows a playback notification that the user can tap to return to the playback page |
 
 ## Build

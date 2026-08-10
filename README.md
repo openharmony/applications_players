@@ -44,15 +44,13 @@ The Player adopts a layered and modular design, organizing code by product form,
 
 The overall structure is divided into three layers: Product Layer, Feature Layer, and Common Layer:
 
-| Layer | Key Directories | Responsibilities (concrete)                                     |
+| Layer | Key Directories | Responsibilities                                     |
 |------| -------------- |----------------------------------------|
-| Product Layer | `entry` | Hosts the application entry, main pages, Ability lifecycle, and page navigation. **Modify this layer mainly when changing the home page / entry interactions.**       |
-| Feature Layer | `feature/media`, `feature/player`, `feature/search`, `feature/playlist` | Media List Browsing, Audio/Video Playback, Search, Playlist Management. **Modify the corresponding feature when changing a specific business flow.**       |
-| Common Layer | `common` | Media scanning & monitoring, system context, permission management, database & persistence, playback engine, data source & model, search index, notifications, common UI components, utilities. **Modify this layer for cross-feature reuse.** |
+| Product Layer | `entry` | Phone and tablet share the same HAP entry: hosts the application entry, main pages, Ability lifecycle, and page navigation.     |
+| Feature Layer | `feature/media`, `feature/player`, `feature/search`, `feature/playlist` | Media List Browsing, Audio/Video Playback, Search, Playlist Management.     |
+| Common Layer | `common` | Media scanning & monitoring, system context, permission management, database & persistence, playback engine, data source & model, search index, notifications, common UI components, utilities. |
 
-Below the Application Layer is the **Framework and Service Layer**: this app invokes system capabilities via MediaKit, AudioKit, ArkData, CoreFileKit, ImageKit, and AbilityKit, corresponding to the media service framework, audio framework, data management framework, file management framework, graphics framework, and Ability runtime framework.
-
-**Product Layer Module Details** (`entry`)
+**Product Layer Module Details**
 
 | Directory / Component | Description |
 |-------------|------|
@@ -65,40 +63,40 @@ Below the Application Layer is the **Framework and Service Layer**: this app inv
 | `constants/` | Route name, view size, and other constants |
 | `utils/` | External Want resolution, navigation, and other utilities |
 
-**Feature Layer Module Details** (`feature/*`)
+**Feature Layer Module Details**
 
-| Core Capability   | Modules       | Description                      |
+| Core Capability   | Key Classes       | Description                      |
 |--------|----------------|-------------------------|
 | Media List Browsing | MediaAggregateView, MediaAggregateViewModel, MediaViewArrayDataSource    | Media list/grid view, multi-strategy scan orchestration, filtering & sorting, multi-select delete         |
 | Audio / Video Playback | AudioPage/VideoPlayPage, AVPlayerController/AudioPlayerController/VideoPlayerController, AudioPlaybackSession/VideoPlaybackSession, PlaybackCallInterruptGuard/PlaybackVideoScreenLockGuard | Audio/video playback pages, AVSession bridge, gesture interaction, PiP, call/screen-lock monitoring |
 | Playlist Management | PlaylistView/PlaylistDetailView/PlaylistEditView, PlaylistAddAudioView | Playlist list/detail/edit, track add/remove/reorder, playback resume         |
 | Search | SearchBar/SearchOverlay, SearchViewModel, SearchIndexCoordinator | Inverted index, relevance scoring, result highlighting              |
 
-**Common Layer Module Details** (`common`)
+**Common Layer Module Details**
 
-| Core Capability | Modules | Description |
+| Core Capability | Key Classes | Description |
 |--------|------|------|
 | Media Scanning & Monitoring | MediaFileScanner, ScanStateManager, ScanTaskPool, FileListenerManager, FileSyncEngine | Unifies discovery of on-device media files and maintains scan state; results are globally shared |
 | System Context | AppContext, IMediaListAccess | Global singleton holding the ability context and DI bridge; unifies system resource access across features |
 | Permission Management | MediaPermissionManager | Wraps system permission APIs and maintains global authorization state; ensures consistent permission requests across scenarios |
 | Database & Persistence | MediaDbManager, Rdb, PlaybackHistoryManager, AppLocalStorage | Unifies the database handle and table access layer; consolidates data write entry points |
 | Playback Engine | PlaybackQueueManager, PlaybackResumeContext | The playback queue and resume state are cross-page global runtime state; centralized to keep track switching and resume consistent across multiple entry points |
-| Data Source & Model | MediaDataSource, IMediaDataSource, FileInfo, AudioItem, VideoItem, MediaCacheManager | Defines the media data contract (data source abstraction and file info models) shared by all features |
+| Data Source & Model | MediaDataSource, IMediaDataSource, FileInfo, AudioItem, VideoItem, MediaCacheManager | Defines data models shared by all features |
 | Search Index | SearchIndexManager | Builds and retrieves the inverted index; index data is maintained globally |
 | Notifications | MediaProgressNotificationHelper, MediaProgressBackgroundHelper, MediaProgressLiveViewHelper | Unifies notification channels and styles |
-| Common UI Components | EmptyStateView, SearchBar, NavBackButton, SwipeDeleteEndAction | Stateless presentational widgets composable by any page |
-| Utilities | MediaMetadataResolver, SearchScorer, ThumbnailManager, DeviceConfigUtil, AppThemeConstants | Stateless pure-function utilities callable by any module, including metadata parsing, search scoring & highlighting, thumbnail loading, pinyin conversion, file & MIME types, date & sorting, device config, theme & font, LRU cache, etc. |
+| Common UI Components | EmptyStateView, SearchBar, NavBackButton, SwipeDeleteEndAction | Stateless presentational widgets, e.g. search box, button, composable by any page |
+| Utilities | MediaMetadataResolver, SearchScorer, ThumbnailManager, DeviceConfigUtil, AppThemeConstants | Stateless pure-function utilities callable by any module, including metadata parsing, thumbnail loading, pinyin conversion cache, etc. |
 
 ### Relationship with Other Applications
 
-System apps can launch this app. The prerequisite is that the app is installed, and playing audio/video requires the user to grant the corresponding media permissions.
+System apps can invoke this app. The prerequisite is that the app is installed, and playing audio/video requires the user to grant the corresponding media permissions.
 
 By scenario:
 
 | Scenario | Description |
 |------|---------------------------|
-| User plays audio/video via File Manager "Open with" | When the user selects an audio/video file in File Manager and chooses "Open with → Player", File Manager launches this app's MainAbility via Want carrying the file URI; the app parses the URI, enters the corresponding playback page, and starts playing |
-| Control center playback control | While Player is playing, the user pulls down the control center from the status bar; this app has registered a media session with the system via AVSession beforehand, and the control center reads that session's playback info and sends play, pause, and skip commands back to this app via session callbacks |
+| User plays audio/video via File Manager "Open with" | When the user selects an audio/video file in File Manager and chooses "Open with → Player", File Manager launches this app's MainAbility via Want carrying the file URI; Player parses the URI, enters the corresponding playback page, and starts playing |
+| Control center playback control | While Player is playing, the user pulls down the control center from the status bar; Player has registered a media session with the system via AVSession beforehand, and the control center reads that session's playback info and sends play, pause, and skip commands back to this app via session callbacks |
 | Lock screen card playback control | While Player is playing, the user locks the screen; the lock screen app also reads this app's session info via AVSession, showing cover art and playback buttons, and the user's actions are passed back to this app via session callbacks for execution |
 | Background audio playback | After the user plays audio and switches to another app, this app continues outputting audio in the background using a background keep-alive permission; it also continuously reports playback state via AVSession, and the notification bar shows a playback notification that the user can tap to return to the playback page |
 
@@ -279,7 +277,7 @@ The following uses **"Adding a playback-related business capability (illustrativ
 
 Users should be able to: set "stop playback after 30 minutes" on the playback page → the app automatically pauses and exits playback at the appointed time. This requires three capability chains simultaneously: **business data & playback control**, **the entry exposed to users**, and **the UI users operate**. The three steps correspond to these three chains; the typical order is **business first → then entry → then UI**.
 
-**Step 1: Extend business capabilities (define "how this capability works" in the feature layer)**
+**Step 1: Extend business capabilities**
 
 | Problem to solve | Description |
 |--------------|----------------|
@@ -287,12 +285,11 @@ Users should be able to: set "stop playback after 30 minutes" on the playback pa
 | Must stop playback at the appointed time | Extend the timed-stop logic in `feature/player`'s controller (e.g. `AVPlayerController`), and coordinate with `PlaybackQueueManager` and AVSession state |
 | For a new Feature HAR | Split View / ViewModel by MVVM; declare the dependency on `@ohos/common` in `feature/<module>/oh-package.json5`; export public APIs in `feature/<module>/Index.ets`; and add the dependency in `entry/oh-package.json5` |
 
-Recommended order:
+Suggested development flow:
 
 1. Implement persistence and playback control logic in the feature layer (`feature/player`, `common/persistence`).
 2. If the capability is independent enough, create a new `feature/xxx` HAR and declare dependencies in `build-profile.json5` and `entry/oh-package.json5`.
 3. Add corresponding UT / DT test cases in `entry/src/ohosTest`.
-4. **Do not build the full UI before the business logic works**, otherwise the page can only bind empty data.
 
 **Step 2: Configure / Verify Ability entry (so the system can "find" this capability)**
 
@@ -348,7 +345,7 @@ Existing entry illustration:
     }
     ```
 
-**Step 3: Customize the UI (let users see and configure the Step 1 business)**
+**Step 3: Customize the UI**
 
 After business data and Ability reachability are in place, modify pages to expose the capability to users, e.g.:
 
@@ -364,8 +361,6 @@ To add an independent page:
 2. Register the route in `entry/src/main/ets/navigation/AppNavPageMap.ets`;
 3. Add a route name constant in `entry/src/main/ets/constants/AppNavRoutes.ets`;
 4. Use `NavRouterHelper` for unified navigation.
-
-**Three-step summary**: Step 1 determines whether playback can actually stop at the appointed time; Step 2 determines reachability between external apps and this app; Step 3 determines how users configure and view it. Missing any step leads to problems like "page exists but takes no effect", "logic exists but cannot be reached", or "entry exists but has no data".
 
 ## Directory Structure
 ```text
@@ -438,7 +433,7 @@ applications_players
 ├─hvigor                                # Build tool configuration
 ├─signature                             # Signing certificate and profile
 ├─figures                               # Architecture/build documentation images
-├─build-profile.json5                   # Project-level SDK / signing / module configuration
+├─build-profile.json5                   # Project-level configuration
 ├─oh-package.json5
 ├─README.md                             # English documentation
 └─README_zh.md                          # Chinese documentation
@@ -451,7 +446,7 @@ applications_players
 - **Form Adaptation**: Landscape/portrait, PiP, and split-screen modes change page layout; multi-form validation is required when modifying UI
 - **Permissions**: The main permissions required by the Player are as follows (see `entry/src/main/module.json5`)
 
-  | Permission | Authorization | Scenario (concrete) |
+  | Permission | Authorization | Scenario |
   |------|---------|------|
   | ohos.permission.READ_AUDIO | User grant | Read audio file metadata and content for media list scanning and playback |
   | ohos.permission.WRITE_AUDIO | User grant | Create/manage audio files |
@@ -466,8 +461,3 @@ applications_players
 ## Contributing
 
 Contributions of code, documentation, and more are welcome. For the specific contribution process and methods, please refer to [Contributing](https://gitcode.com/openharmony/docs/blob/master/zh-cn/contribute/%E5%8F%82%E4%B8%8E%E8%B4%A1%E7%8C%AE.md).
-
-## Related Repositories
-
-- [multimedia_player_framework](https://gitcode.com/openharmony/multimedia_player_framework) (Media component framework, provides AVPlayer playback capability)
-- [multimedia_av_session](https://gitcode.com/openharmony/multimedia_av_session) (AVSession component, provides system-level playback control and background playback)

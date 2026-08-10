@@ -52,12 +52,12 @@
 
 **特性层模块说明**：
 
-| 核心能力   | 模块       | 说明                      |
-|--------|----------------|-------------------------|
-| 媒体列表浏览 | MediaAggregateView、MediaAggregateViewModel、MediaViewArrayDataSource    | 媒体列表/宫格视图、多策略扫描编排、筛选排序、多选删除         |
+| 核心能力   | 关键路径                                                                                                                                                                                     | 说明                      |
+|--------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------|
+| 媒体列表浏览 | MediaAggregateView、MediaAggregateViewModel、MediaViewArrayDataSource                                                                                                                      | 媒体列表/宫格视图、多策略扫描编排、筛选排序、多选删除         |
 | 音视频播放 | AudioPage/VideoPlayPage、AVPlayerController/AudioPlayerController/VideoPlayerController、AudioPlaybackSession/VideoPlaybackSession、PlaybackCallInterruptGuard/PlaybackVideoScreenLockGuard | 音频/视频播放页、AVSession 桥接、手势交互、PiP、来电/锁屏监听 |
-| 歌单管理 | PlaylistView/PlaylistDetailView/PlaylistEditView、PlaylistAddAudioView | 歌单列表/详情/编辑、曲目增删排序、断点续播         |
-| 搜索 | SearchBar/SearchOverlay、SearchViewModel、SearchIndexCoordinator | 倒排索引、评分排序、结果高亮              |
+| 歌单管理 | PlaylistView/PlaylistDetailView/PlaylistEditView、PlaylistAddAudioView                                                                                                                    | 歌单列表/详情/编辑、曲目增删排序、断点续播         |
+| 搜索 | SearchBar/SearchOverlay、SearchViewModel、SearchIndexCoordinator                                                                                                                           | 倒排索引、评分排序、结果高亮              |
 
 ### 与其它应用的关系
 

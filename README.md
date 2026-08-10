@@ -74,7 +74,7 @@ The overall structure is divided into three layers: Product Layer, Feature Layer
 This project is a multi-module HAR + HAP application project built with Hvigor, producing the `com.ohos.players` system application package.
 
 ### Environment Requirements
-- OpenHarmony SDK (this project's `compileSdkVersion` / `compatibleSdkVersion` / `targetSdkVersion` are all 23)
+- OpenHarmony SDK: compileSdkVersion 26, compatibleSdkVersion 23
 - DevEco Studio or command-line Hvigor toolchain
 - System signing certificate (see `signature/`)
 
@@ -314,68 +314,68 @@ applications_players
 ├─AppScope                              # Application-level config and resources
 │  ├─app.json5                          # bundleName, version, etc.
 │  └─resources/                         # Global strings / icons
-├─entry                                 # Product Layer
+├─entry                                 # Product Layer, hosting app entry, main pages, and page navigation
 │  └─src/main/ets/
-│     ├─abilities/                      # MainAbility entry, UIAbility lifecycle
-│     ├─pages/                          # MainPage, DefaultIndexPage, PlaylistPage
-│     ├─pages/nav/                      # NavDestination sub-pages (audio/video/search/settings, etc.)
-│     ├─navigation/                     # NavPathStack route table
-│     ├─components/                     # Home page header, category tabs, floating tab bar, etc.
-│     ├─viewmodel/                      # HomeViewModel, PlaylistViewModel, and other orchestrators
-│     ├─constants/                      # Route constants, view constants
-│     └─utils/                          # ExternalWantResolver, NavRouterHelper
+│     ├─abilities/                      # Ability entry and UIAbility lifecycle management
+│     ├─pages/                          # Home page, default index page, playlist page, and other main pages
+│     ├─pages/nav/                      # NavDestination sub-pages, including audio/video/search/settings, etc.
+│     ├─navigation/                     # NavPathStack route table and page registration
+│     ├─components/                     # Home page components, including header, category tabs, floating tab bar, etc.
+│     ├─viewmodel/                      # Page-level business orchestration, including home and playlist ViewModels
+│     ├─constants/                      # Route name, view size, and other constants
+│     └─utils/                          # External Want resolution, navigation, and other utilities
 ├─feature                               # Feature Layer
 │  ├─media/                             # Media List Browsing
 │  │  └─src/main/ets/
-│  │     ├─components/                  # MediaAggregateView, MediaGridItem, etc.
-│  │     ├─manager/                     # MediaAggregateViewModel
-│  │     ├─constants/                   # Layout, sort, UI constants
-│  │     ├─datasource/                  # MediaViewArrayDataSource
-│  │     └─utils/                       # MediaSortDisplayUtil
+│  │     ├─components/                  # List and grid view components
+│  │     ├─manager/                     # Media list business orchestration and state management
+│  │     ├─constants/                   # Layout mode, sort rule, UI size, and other constants
+│  │     ├─datasource/                  # Media list data source adaptation
+│  │     └─utils/                       # Sort item display and other utilities
 │  ├─player/                            # Audio / Video Playback
 │  │  └─src/main/ets/
-│  │     ├─pages/                       # AudioPage, VideoPlayPage
-│  │     ├─component/                   # AudioPlayer, AVVideoPlayer, MiniPlayerBar, etc.
-│  │     ├─controller/                  # AVPlayerController, AudioPlayerController, VideoPlayerController
-│  │     ├─session/                     # AudioPlaybackSession, VideoPlaybackSession, etc.
-│  │     ├─viewmodel/                   # VideoPlaybackViewModel, VideoPipViewModel
-│  │     ├─view/                        # TitleBar, ToolButton
-│  │     ├─datasource/                  # PlaybackQueueDataSource
-│  │     ├─utils/                       # PlayerWindowModeUtil, VideoLayoutUtil, etc.
-│  │     └─constants/                   # Playback control, PiP, UI constants
+│  │     ├─pages/                       # Audio playback page, video playback page
+│  │     ├─component/                   # Video player and other player components
+│  │     ├─controller/                  # Playback control, including audio/video/common playback controllers
+│  │     ├─session/                     # AVSession media session and background playback management
+│  │     ├─viewmodel/                   # Video playback and PiP business orchestration
+│  │     ├─view/                        # Title bar, tool button, and other view components
+│  │     ├─datasource/                  # Playback queue data source adaptation
+│  │     ├─utils/                       # Window mode, video layout, and other utilities
+│  │     └─constants/                   # Playback control, PiP, UI size, and other constants
 │  ├─playlist/                          # Playlist Management
 │  │  └─src/main/ets/
-│  │     ├─components/                  # PlaylistView, PlaylistDetailView, PlaylistEditView, etc.
-│  │     ├─datasource/                  # PlaylistDataSource, PlaylistTrackDataSource
-│  │     ├─model/                       # PlaylistItem
-│  │     ├─constants/                   # PlaylistConstants
-│  │     └─utils/                       # PlaylistNameInputUtil
+│  │     ├─components/                  # Playlist list, detail, edit, and other components
+│  │     ├─datasource/                  # Playlist list and track data source adaptation
+│  │     ├─model/                       # Playlist data model
+│  │     ├─constants/                   # Playlist UI constants, including card style, grid layout, name input dialog, etc.
+│  │     └─utils/                       # Playlist name input validation and other utilities
 │  └─search/                            # Search
 │     └─src/main/ets/
-│        ├─components/                  # SearchOverlay, SearchResultItem
-│        ├─viewmodel/                   # SearchViewModel
-│        ├─manager/                     # SearchIndexCoordinator
-│        ├─utils/                       # SearchPreference
-│        └─constants/                   # Search UI, preference constants
+│        ├─components/                  # Search overlay, search result item, and other components
+│        ├─viewmodel/                   # Search business orchestration
+│        ├─manager/                     # Search index coordination management
+│        ├─utils/                       # Search preference configuration and other utilities
+│        └─constants/                   # Search UI, preference, and other constants
 ├─common                                # Common Capability Layer
 │  └─src/main/ets/
-│     ├─bridge/                         # DI bridge interface (IMediaListAccess)
-│     ├─cache/                          # Media list cache (MediaCacheManager)
-│     ├─component/                      # Shared UI components (EmptyStateView, SearchBar, NavBackButton, etc.)
-│     ├─constants/                      # Constants (AppTheme, Player, SupportedMedia, etc.)
-│     ├─context/                        # Global context holder (AppContext)
-│     ├─datasource/                     # Data source abstraction (IMediaDataSource, MediaDataSource, etc.)
-│     ├─listener/                       # File monitoring (FileListenerManager, FileSyncEngine)
-│     ├─model/                          # Data models (AudioItem, VideoItem, GroupFileInfo, etc.)
-│     ├─notification/                   # Notification management (MediaProgressNotificationHelper)
-│     ├─permission/                     # Permission management (MediaPermissionManager)
-│     ├─persistence/                    # Persistence (MediaDbManager/RDB, PlaybackHistory, DisplaySettings, etc.)
-│     ├─player/                         # Playback engine (PlaybackQueueManager, AVPlayerManager)
-│     ├─scan/                           # Scan task scheduling (MediaFileScanner, ScanStateManager, ScanTaskPool)
-│     ├─search/                         # Inverted index (SearchIndexManager)
-│     ├─storage/                        # Global storage (AppLocalStorage)
-│     ├─thumbnail/                      # Multi-level thumbnail cache (ThumbnailManager, DiskCache, MemoryCache)
-│     └─utils/                          # Utilities (HiLog, MediaMetadataResolver, DeviceConfigUtil, etc.)
+│     ├─bridge/                         # Dependency injection bridge interface
+│     ├─cache/                          # Media list cache management
+│     ├─component/                      # Shared UI components, including empty state, search bar, back button, etc.
+│     ├─constants/                      # Theme, player, supported media formats, and other constants
+│     ├─context/                        # Global context holder
+│     ├─datasource/                     # Data source abstraction and implementation
+│     ├─listener/                       # File monitoring and sync engine
+│     ├─model/                          # Data models, including audio item, video item, file info, etc.
+│     ├─notification/                   # Notification management, including progress notification, etc.
+│     ├─permission/                     # Permission management
+│     ├─persistence/                    # Persistence, including database management, playback history, display settings, etc.
+│     ├─player/                         # Playback engine, including playback queue management, AVPlayer management, etc.
+│     ├─scan/                           # Scan task scheduling, including scanner, state management, task pool, etc.
+│     ├─search/                         # Inverted index and search index management
+│     ├─storage/                        # Global local storage
+│     ├─thumbnail/                      # Multi-level thumbnail cache, including disk cache and memory cache
+│     └─utils/                          # Utilities, including logging, metadata parsing, device config, etc.
 ├─hvigor                                # Build tool configuration
 ├─signature                             # Signing certificate and profile
 ├─figures                               # Architecture/build documentation images

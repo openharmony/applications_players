@@ -44,30 +44,61 @@
 
 整体可划分为产品层、特性层、公共层：
 
-| 层次   | 主要目录 / 组件 | 说明                                     |
-|------| -------------- |----------------------------------------|
-| 产品层 | `entry` | 承载应用入口、主页面、Ability 生命周期与页面导航       |
-| 特性层 | `feature/media`、`feature/player`、`feature/playlist`、`feature/search` | 媒体列表浏览、音视频播放、歌单管理、搜索       |
-| 公共层 | `common` | 系统上下文、权限管理、数据库与持久化、媒体扫描与监听、播放引擎、数据源与模型、缩略图、搜索索引、通知、UI 组件、桥接接口、工具集 |
+| 层次 | 主要目录 | 说明                                                                                |
+|------| -------------- |-----------------------------------------------------------------------------------|
+| 产品层 | `entry` | 手机、平板同一hap入口：承载应用入口、主页面、Ability 生命周期与页面导航。                                        |
+| 特性层 | `feature/media`、`feature/player`、`feature/search`、`feature/playlist` | 媒体列表浏览、音视频播放、搜索、歌单管理。                                                             |
+| 公共层 | `common` | 媒体扫描与监听、系统上下文、权限管理、数据库与持久化、播放引擎、数据源与模型、搜索索引、通知、公共UI组件、工具集。 |
 
-**特性层模块说明**：
+**产品层模块说明**
 
-| 核心能力   | 模块       | 说明                      |
-|--------|----------------|-------------------------|
-| 媒体列表浏览 | MediaAggregateView、MediaAggregateViewModel、MediaViewArrayDataSource    | 媒体列表/宫格视图、多策略扫描编排、筛选排序、多选删除         |
+| 目录 / 组件 | 说明 |
+|-------------|------|
+| `abilities/` | `MainAbility` 入口，承载 UIAbility 生命周期 |
+| `pages/` | 首页、默认索引页、歌单页等主页面 |
+| `pages/nav/` | NavDestination 子页面，包括音频/视频/搜索/设置等 |
+| `navigation/` | NavPathStack 路由表与页面注册 |
+| `components/` | 首页组件，包括顶栏、分类 Tab、浮动 Tab 栾等 |
+| `viewmodel/` | 页面级业务编排，包括首页与歌单的 ViewModel |
+| `constants/` | 路由名称、视图尺寸等常量 |
+| `utils/` | 外部 Want 解析、导航跳转等工具 |
+
+**特性层模块说明**
+
+| 核心能力 | 关键类                                                                                                                                                                                      | 说明                      |
+|--------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------|
+| 媒体列表浏览 | MediaAggregateView、MediaAggregateViewModel、MediaViewArrayDataSource                                                                                                                      | 媒体列表/宫格视图、多策略扫描编排、筛选排序、多选删除         |
 | 音视频播放 | AudioPage/VideoPlayPage、AVPlayerController/AudioPlayerController/VideoPlayerController、AudioPlaybackSession/VideoPlaybackSession、PlaybackCallInterruptGuard/PlaybackVideoScreenLockGuard | 音频/视频播放页、AVSession 桥接、手势交互、PiP、来电/锁屏监听 |
-| 歌单管理 | PlaylistView/PlaylistDetailView/PlaylistEditView、PlaylistAddAudioView | 歌单列表/详情/编辑、曲目增删排序、断点续播         |
-| 搜索 | SearchBar/SearchOverlay、SearchViewModel、SearchIndexCoordinator | 倒排索引、评分排序、结果高亮              |
+| 歌单管理 | PlaylistView/PlaylistDetailView/PlaylistEditView、PlaylistAddAudioView                                                                                                                    | 歌单列表/详情/编辑、曲目增删排序、断点续播         |
+| 搜索 | SearchBar/SearchOverlay、SearchViewModel、SearchIndexCoordinator                                                                                                                           | 倒排索引、评分排序、结果高亮              |
+
+**公共层模块说明**
+
+| 核心能力 | 关键类                                                                                       | 说明                                                |
+|--------|-------------------------------------------------------------------------------------------|---------------------------------------------------|
+| 媒体扫描与监听 | MediaFileScanner、ScanStateManager、ScanTaskPool、FileListenerManager、FileSyncEngine         | 统一发现设备内媒体文件并维护扫描状态，扫描结果全局共享                       |
+| 系统上下文 | AppContext、IMediaListAccess                                                               | 全局单例持有 ability context 与依赖注入桥接，跨 feature 统一获取系统资源 |
+| 权限管理 | MediaPermissionManager                                                                    | 封装系统权限 API 并维护全局授权状态，保证各场景权限请求一致                  |
+| 数据库与持久化 | MediaDbManager、Rdb、PlaybackHistoryManager、AppLocalStorage                                 | 统一数据库句柄与表访问层，收敛数据写入入口                             |
+| 播放引擎 | PlaybackQueueManager、PlaybackResumeContext                                                | 播放队列与续播状态是跨页面的全局运行态，集中管理以保证切歌与续播在多入口下一致           |
+| 数据源与模型 | MediaDataSource、IMediaDataSource、FileInfo、AudioItem、VideoItem、MediaCacheManager           | 定义各 feature 共用的数据模型                               |
+| 搜索索引 | SearchIndexManager                                                                        | 倒排索引构建与检索，索引数据全局维护                                |
+| 通知 | MediaProgressNotificationHelper、MediaProgressBackgroundHelper、MediaProgressLiveViewHelper | 统一通知渠道与样式                                         |
+| 公共UI组件 | EmptyStateView、SearchBar、NavBackButton、SwipeDeleteEndAction                               | 无业务状态的纯展示控件，如搜索框、按钮，可被任意页面组合                      |
+| 工具集 | MediaMetadataResolver、SearchScorer、ThumbnailManager、DeviceConfigUtil、AppThemeConstants    | 无状态纯函数工具，任意模块可调用，含元数据解析、缩略图加载、拼音转换缓存等                                  |
 
 ### 与其它应用的关系
 
-| 项目          | 说明                                                      |
-|-------------|---------------------------------------------------------|
-| 是否允许其他应用调用  | 允许。MainAbility 声明 exported=true，外部应用可通过 Want 拉起         |
-| 谁能调用        | 系统应用可通过 Want 拉起，文件管理器可通过「打开方式」唤起    |
-| 什么时候能调用     | 应用安装后即可调用；播放音频/视频需用户授权对应媒体权限后方可执行                     |
-| 支持的 Want 参数 | 支持 file 和 content 协议的 audio/* 与 video/* URI，由 ExternalWantResolver 解析 |
-| 跨进程服务       | 通过 AVSession 提供系统级播控，支持播控中心、锁屏卡片与后台播放                 |
+允许系统侧应用调用本应用。前提是本应用已安装，且播放音视频需用户授权对应媒体权限。
+
+按场景说明：
+
+| 场景 | 说明                                                                                               |
+|------|--------------------------------------------------------------------------------------------------|
+| 用户在文件管理器用「打开方式」播放音视频 | 用户在文件管理器选中音视频文件后选择「打开方式 → 播放器」时，文件管理器通过 Want 携带文件 URI 拉起本应用 MainAbility，播放器解析 URI 后进入对应播放页并开始播放。 |
+| 播控中心控制播放 | 播放器正在播放时，用户从状态栏下拉播控中心；播放器事先通过 AVSession 向系统注册了媒体会话，播控中心读取该会话的播放信息，并通过会话回调向本应用下发播放、暂停、切歌等命令。      |
+| 锁屏卡片控制播放 | 播放器正在播放时用户锁屏；锁屏应用同样通过 AVSession 读取本应用的会话信息，在锁屏界面展示封面与播控按钮，用户的操作经会话回调传回本应用执行。                     |
+| 后台音频播放 | 用户播放音频后将播放器切到后台，播放器可继续在后台输出音频；同时通过 AVSession 持续上报播放状态，通知栏展示播放通知，用户点击通知可回到播放页。                    |
 
 ## 编译构建
 
@@ -238,20 +269,36 @@ hvigorw assembleHap
 
 ### 新特性能力的开发
 
-适用场景：新增媒体相关能力、扩展播放形态、补充差异化交互或适配新设备形态。
+下面用 **「新增一种播放相关业务能力（示意：睡眠定时关闭播放）」** 串起完整步骤，以及前后依赖关系。
 
-> **说明**：当前工程采用 `entry + feature + common` 多模块结构，产品入口为 `entry`。新能力一般按现有分层扩展；若新增产品形态 HAP，可在 `build-profile.json5` 中注册对应模块。
+> **说明**：当前工程采用 `entry + feature + common` 多模块结构，产品入口为 `entry`。一般新业务落在已有 feature；若新增独立产品形态 HAP，可在 `build-profile.json5` 中注册对应模块。
 
-**场景1：扩展业务能力（最常见）**
+#### 目标业务（示例）
 
-1. 在对应 `feature/` 中补充页面、控制器或 ViewModel 逻辑。
-2. 如涉及持久化，在 `common` 的 `persistence/rdb` 中扩展表访问，并经 `MediaDbManager` 暴露。
-3. 如涉及新 Feature HAR，按 MVVM 拆分 View / ViewModel；在 `feature/<module>/oh-package.json5` 声明对 `@ohos/common` 的依赖；在 `feature/<module>/Index.ets` 导出对外 API。
-4. 在 `entry/oh-package.json5` 中增加依赖声明。
-5. 在 `entry/src/ohosTest` 中补充对应 UT / DT 用例。
-6. 配置 / 确认 Ability 入口
+希望用户能：在播放页设置「定时 30 分钟后停止播放」→ 到点自动暂停并退出播放。因此需要同时具备：**业务数据与播放控制链路**、**暴露给用户的入口**、**用户可操作的 UI**。三步对应这三条能力链路，顺序一般是 **先业务 → 再入口 → 后 UI**。
 
-    本工程入口已在 `entry/src/main/module.json5` 中声明，扩展能力时通常只需确认权限、Ability、skills 与 Want 过滤器是否满足新场景：
+**步骤1：扩展业务能力**
+
+| 要解决的问题 | 说明 |
+|--------------|----------------|
+| 定时设置要能持久化 | 在 `common` 的 `persistence/rdb` 中扩展表或字段，并经 `MediaDbManager` 暴露；否则重启后设置丢失 |
+| 到点要能停止播放 | 在 `feature/player` 的控制器（如 `AVPlayerController`）中扩展定时停止逻辑，并联动 `PlaybackQueueManager` 与 AVSession 状态 |
+| 新 Feature HAR 时 | 按 MVVM 拆分 View / ViewModel；在 `feature/<module>/oh-package.json5` 声明对 `@ohos/common` 的依赖；在 `feature/<module>/Index.ets` 导出对外 API；并在 `entry/oh-package.json5` 增加依赖声明 |
+
+开发流程建议：
+
+1. 在特性层落实持久化与播放控制逻辑（`feature/player`、`common/persistence`）。
+2. 若能力足够独立，也可新建 `feature/xxx` HAR，在 `build-profile.json5` 与 `entry/oh-package.json5` 声明依赖。
+3. 在 `entry/src/ohosTest` 中补充对应 UT / DT 用例。
+
+**步骤2：配置 / 确认 Ability 入口（让系统能「找得到」本能力）**
+
+业务逻辑若在 HAR 内，**外部仍只会拉起 `entry` 里声明的 Ability**。因此要核对 `entry/src/main/module.json5`：
+
+- 现有 `MainAbility` 是否覆盖场景；新场景若需新的 Ability / skills / Want 过滤器，在此声明，否则外部 Want **无法拉起**。
+- 权限是否足够：例如后台定时仍依赖 `KEEP_BACKGROUND_RUNNING`，通知依赖 `NOTIFICATION_CONTROLLER`。
+
+现有入口示意：
 
     ```json
     {
@@ -298,11 +345,18 @@ hvigorw assembleHap
     }
     ```
 
-**场景2：定制 UI**
+**步骤3：定制 UI**
 
-在完成业务能力与 Ability 配置后，参照上文「场景5：修改UI组件」的方式，在对应 Feature 或 `entry/components/` / `common/component/` 中扩展首页、播放页、歌单页、列表组件或搜索页面即可。
+在业务数据与 Ability 可达之后，再改页面把能力暴露给用户，例如：
 
-若需新增独立页面：
+| UI | 位置 | 用途 |
+|----|------|------|
+| 播放页新增「睡眠定时」入口 | `feature/player/src/main/ets/pages/AudioPage.ets` / `VideoPlayPage.ets` | 弹出定时选项 |
+| 定时选项半模态 | `entry/src/main/ets/pages/nav/` 新增 NavDestination | 选择时长并写入步骤1 的持久化 |
+| 播放队列面板状态同步 | `feature/player/src/main/ets/datasource/` | 展示剩余时长 |
+
+新增独立页面时：
+
 1. 在 `entry/src/main/ets/pages/nav/` 下新增 NavDestination 包装页，业务 UI 放在对应 Feature；
 2. 在 `entry/src/main/ets/navigation/AppNavPageMap.ets` 中注册路由；
 3. 在 `entry/src/main/ets/constants/AppNavRoutes.ets` 中增加路由名称常量；
@@ -394,12 +448,12 @@ applications_players
 
   | 权限 | 授权方式 | 使用场景 |
   |------|---------|------|
-  | ohos.permission.READ_AUDIO | 用户授权 | 读取音频文件元数据与内容 |
+  | ohos.permission.READ_AUDIO | 用户授权 | 读取音频文件元数据与内容，供媒体列表扫描与播放 |
   | ohos.permission.WRITE_AUDIO | 用户授权 | 创建/管理音频文件 |
   | ohos.permission.READ_IMAGEVIDEO | 用户授权 | 读取视频文件元数据与内容 |
   | ohos.permission.WRITE_IMAGEVIDEO | 用户授权 | 创建/管理视频文件 |
-  | ohos.permission.KEEP_BACKGROUND_RUNNING | 系统授权 | 后台播放与扫描任务保活 |
-  | ohos.permission.NOTIFICATION_CONTROLLER | 系统授权 | 播放通知与扫描进度通知 |
+  | ohos.permission.KEEP_BACKGROUND_RUNNING | 系统授权 | 后台音频播放与媒体扫描任务保活，避免进程被挂起 |
+  | ohos.permission.NOTIFICATION_CONTROLLER | 系统授权 | 播放通知与扫描进度通知，供播控中心与锁屏卡片展示 |
 
 - **支持的媒体格式**：音频（m4a、aac、mp3、ogg、wav、amr）、视频（mp4、mkv、ts）
 

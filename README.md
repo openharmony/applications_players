@@ -44,37 +44,68 @@ The Player adopts a layered and modular design, organizing code by product form,
 
 The overall structure is divided into three layers: Product Layer, Feature Layer, and Common Layer:
 
-| Layer   | Key Directories / Components | Description                                     |
+| Layer | Key Directories | Responsibilities                                     |
 |------| -------------- |----------------------------------------|
-| Product Layer | `entry` | Hosts the application entry, main pages, Ability lifecycle, and page navigation       |
-| Feature Layer | `feature/media`, `feature/player`, `feature/playlist`, `feature/search` | Media List Browsing, Audio/Video Playback, Playlist Management, Search       |
-| Common Layer | `common` | System context, permission management, database & persistence, media scanning & monitoring, playback engine, data source & model, thumbnails, search index, notifications, UI components, bridge interfaces, utilities |
+| Product Layer | `entry` | Phone and tablet share the same HAP entry: hosts the application entry, main pages, Ability lifecycle, and page navigation.     |
+| Feature Layer | `feature/media`, `feature/player`, `feature/search`, `feature/playlist` | Media List Browsing, Audio/Video Playback, Search, Playlist Management.     |
+| Common Layer | `common` | Media scanning & monitoring, system context, permission management, database & persistence, playback engine, data source & model, search index, notifications, common UI components, utilities. |
 
-**Feature Layer Module Details**:
+**Product Layer Module Details**
 
-| Core Capability   | Modules       | Description                      |
+| Directory / Component | Description |
+|-------------|------|
+| `abilities/` | `MainAbility` entry; hosts UIAbility lifecycle |
+| `pages/` | Main page, default index page, playlist page, and other main pages |
+| `pages/nav/` | NavDestination sub-pages, including audio/video/search/settings, etc. |
+| `navigation/` | NavPathStack route table and page registration |
+| `components/` | Home page components, including header, category tabs, floating tab bar, etc. |
+| `viewmodel/` | Page-level business orchestration, including home and playlist ViewModels |
+| `constants/` | Route name, view size, and other constants |
+| `utils/` | External Want resolution, navigation, and other utilities |
+
+**Feature Layer Module Details**
+
+| Core Capability   | Key Classes       | Description                      |
 |--------|----------------|-------------------------|
 | Media List Browsing | MediaAggregateView, MediaAggregateViewModel, MediaViewArrayDataSource    | Media list/grid view, multi-strategy scan orchestration, filtering & sorting, multi-select delete         |
 | Audio / Video Playback | AudioPage/VideoPlayPage, AVPlayerController/AudioPlayerController/VideoPlayerController, AudioPlaybackSession/VideoPlaybackSession, PlaybackCallInterruptGuard/PlaybackVideoScreenLockGuard | Audio/video playback pages, AVSession bridge, gesture interaction, PiP, call/screen-lock monitoring |
 | Playlist Management | PlaylistView/PlaylistDetailView/PlaylistEditView, PlaylistAddAudioView | Playlist list/detail/edit, track add/remove/reorder, playback resume         |
 | Search | SearchBar/SearchOverlay, SearchViewModel, SearchIndexCoordinator | Inverted index, relevance scoring, result highlighting              |
 
+**Common Layer Module Details**
+
+| Core Capability | Key Classes | Description |
+|--------|------|------|
+| Media Scanning & Monitoring | MediaFileScanner, ScanStateManager, ScanTaskPool, FileListenerManager, FileSyncEngine | Unifies discovery of on-device media files and maintains scan state; results are globally shared |
+| System Context | AppContext, IMediaListAccess | Global singleton holding the ability context and DI bridge; unifies system resource access across features |
+| Permission Management | MediaPermissionManager | Wraps system permission APIs and maintains global authorization state; ensures consistent permission requests across scenarios |
+| Database & Persistence | MediaDbManager, Rdb, PlaybackHistoryManager, AppLocalStorage | Unifies the database handle and table access layer; consolidates data write entry points |
+| Playback Engine | PlaybackQueueManager, PlaybackResumeContext | The playback queue and resume state are cross-page global runtime state; centralized to keep track switching and resume consistent across multiple entry points |
+| Data Source & Model | MediaDataSource, IMediaDataSource, FileInfo, AudioItem, VideoItem, MediaCacheManager | Defines data models shared by all features |
+| Search Index | SearchIndexManager | Builds and retrieves the inverted index; index data is maintained globally |
+| Notifications | MediaProgressNotificationHelper, MediaProgressBackgroundHelper, MediaProgressLiveViewHelper | Unifies notification channels and styles |
+| Common UI Components | EmptyStateView, SearchBar, NavBackButton, SwipeDeleteEndAction | Stateless presentational widgets, e.g. search box, button, composable by any page |
+| Utilities | MediaMetadataResolver, SearchScorer, ThumbnailManager, DeviceConfigUtil, AppThemeConstants | Stateless pure-function utilities callable by any module, including metadata parsing, thumbnail loading, pinyin conversion cache, etc. |
+
 ### Relationship with Other Applications
 
-| Item          | Description                                                      |
-|-------------|---------------------------------------------------------|
-| Can other apps invoke it?  | Yes. MainAbility declares `exported=true`; external apps can launch it via Want         |
-| Who can invoke it?        | System apps can launch via Want; File Manager can invoke through "Open with"   |
-| When can it be invoked?     | It can be invoked after the app is installed; audio/video playback requires corresponding media permissions to be granted by the user first                   |
-| Supported Want parameters | Supports `file` and `content` protocol `audio/*` and `video/*` URIs, parsed by `ExternalWantResolver` |
-| Cross-process service       | Provides system-level playback control via AVSession, supporting the control center, lock screen cards, and background playback                 |
+System apps can invoke this app. The prerequisite is that the app is installed, and playing audio/video requires the user to grant the corresponding media permissions.
+
+By scenario:
+
+| Scenario | Description |
+|------|---------------------------|
+| User plays audio/video via File Manager "Open with" | When the user selects an audio/video file in File Manager and chooses "Open with → Player", File Manager launches this app's MainAbility via Want carrying the file URI; Player parses the URI, enters the corresponding playback page, and starts playing |
+| Control center playback control | While Player is playing, the user pulls down the control center from the status bar; Player has registered a media session with the system via AVSession beforehand, and the control center reads that session's playback info and sends play, pause, and skip commands back to this app via session callbacks |
+| Lock screen card playback control | While Player is playing, the user locks the screen; the lock screen app also reads this app's session info via AVSession, showing playback buttons, and the user's actions are passed back to this app via session callbacks for execution |
+| Background audio playback | After the user plays audio and switches to another app, this app continues outputting audio in the background using a background keep-alive permission; it also continuously reports playback state via AVSession, and the notification bar shows a playback notification that the user can tap to return to the playback page |
 
 ## Build
 
 This project is a multi-module HAR + HAP application project built with Hvigor, producing the `com.ohos.players` system application package.
 
 ### Environment Requirements
-- OpenHarmony SDK (this project's `compileSdkVersion` / `compatibleSdkVersion` / `targetSdkVersion` are all 23)
+- OpenHarmony SDK: compileSdkVersion 26, compatibleSdkVersion 23
 - DevEco Studio or command-line Hvigor toolchain
 - System signing certificate (see `signature/`)
 
@@ -238,20 +269,36 @@ Common modification entry points:
 
 ### New Feature Capability Development
 
-Applicable scenarios: adding media capabilities, extending playback forms, supplementing differentiated interactions, or adapting to new device forms.
+The following uses **"Adding a playback-related business capability (illustrative: sleep-timer stop playback)"** to walk through the complete steps and their dependencies.
 
-> **Note**: This project uses an `entry + feature + common` multi-module structure with `entry` as the product entry. New capabilities should generally be extended following the existing layering; if a new product form HAP is added, register the corresponding module in `build-profile.json5`.
+> **Note**: This project uses an `entry + feature + common` multi-module structure with `entry` as the product entry. New business generally lands in an existing feature; if a new product form HAP is needed, register the corresponding module in `build-profile.json5`.
 
-**Scenario 1: Extending Business Capabilities (most common)**
+#### Target Business (example)
 
-1. Add pages, controllers, or ViewModel logic in the corresponding `feature/`.
-2. For persistence, extend table access in `common`'s `persistence/rdb` and expose it through `MediaDbManager`.
-3. For a new Feature HAR, split View / ViewModel by MVVM; declare the dependency on `@ohos/common` in `feature/<module>/oh-package.json5`; export public APIs in `feature/<module>/Index.ets`.
-4. Add the dependency declaration in `entry/oh-package.json5`.
-5. Add corresponding UT / DT test cases in `entry/src/ohosTest`.
-6. Configure / Verify Ability Entry
+Users should be able to: set "stop playback after 30 minutes" on the playback page → the app automatically pauses and exits playback at the appointed time. This requires three capability chains simultaneously: **business data & playback control**, **the entry exposed to users**, and **the UI users operate**. The three steps correspond to these three chains; the typical order is **business first → then entry → then UI**.
 
-    The project entry is declared in `entry/src/main/module.json5`. When extending capabilities, confirm whether permissions, Abilities, skills, and Want filters meet the new scenario:
+**Step 1: Extend business capabilities**
+
+| Problem to solve | Description |
+|--------------|----------------|
+| Timer setting must persist | Extend a table or field in `common`'s `persistence/rdb` and expose it via `MediaDbManager`; otherwise the setting is lost after restart |
+| Must stop playback at the appointed time | Extend the timed-stop logic in `feature/player`'s controller (e.g. `AVPlayerController`), and coordinate with `PlaybackQueueManager` and AVSession state |
+| For a new Feature HAR | Split View / ViewModel by MVVM; declare the dependency on `@ohos/common` in `feature/<module>/oh-package.json5`; export public APIs in `feature/<module>/Index.ets`; and add the dependency in `entry/oh-package.json5` |
+
+Suggested development flow:
+
+1. Implement persistence and playback control logic in the feature layer (`feature/player`, `common/persistence`).
+2. If the capability is independent enough, create a new `feature/xxx` HAR and declare dependencies in `build-profile.json5` and `entry/oh-package.json5`.
+3. Add corresponding UT / DT test cases in `entry/src/ohosTest`.
+
+**Step 2: Configure / Verify Ability entry (so the system can "find" this capability)**
+
+Even if the business logic lives in a HAR, **externals still only launch Abilities declared in `entry`**. Therefore verify `entry/src/main/module.json5`:
+
+- Whether the existing `MainAbility` covers the scenario; if a new Ability / skills / Want filter is needed, declare it here, otherwise external Wants **cannot launch** it.
+- Whether permissions are sufficient: e.g. background timing still depends on `KEEP_BACKGROUND_RUNNING`, notifications on `NOTIFICATION_CONTROLLER`.
+
+Existing entry illustration:
 
     ```json
     {
@@ -298,11 +345,18 @@ Applicable scenarios: adding media capabilities, extending playback forms, suppl
     }
     ```
 
-**Scenario 2: Customizing UI**
+**Step 3: Customize the UI**
 
-After completing business capabilities and Ability configuration, extend the home page, playback pages, playlist pages, list components, or search pages by referring to "Scenario 5: Modifying UI Components" above, making changes in the corresponding Feature or `entry/components/` / `common/component/`.
+After business data and Ability reachability are in place, modify pages to expose the capability to users, e.g.:
+
+| UI | Location | Purpose |
+|----|------|------|
+| Add a "Sleep timer" entry on the playback page | `feature/player/src/main/ets/pages/AudioPage.ets` / `VideoPlayPage.ets` | Pop up timer options |
+| Timer options half-modal | New NavDestination under `entry/src/main/ets/pages/nav/` | Select a duration and write it to Step 1's persistence |
+| Playback queue panel state sync | `feature/player/src/main/ets/datasource/` | Show remaining time |
 
 To add an independent page:
+
 1. Add a NavDestination wrapper page under `entry/src/main/ets/pages/nav/`, placing business UI in the corresponding Feature;
 2. Register the route in `entry/src/main/ets/navigation/AppNavPageMap.ets`;
 3. Add a route name constant in `entry/src/main/ets/constants/AppNavRoutes.ets`;
@@ -314,72 +368,72 @@ applications_players
 ├─AppScope                              # Application-level config and resources
 │  ├─app.json5                          # bundleName, version, etc.
 │  └─resources/                         # Global strings / icons
-├─entry                                 # Product Layer
+├─entry                                 # Product Layer, hosting app entry, main pages, and page navigation
 │  └─src/main/ets/
-│     ├─abilities/                      # MainAbility entry, UIAbility lifecycle
-│     ├─pages/                          # MainPage, DefaultIndexPage, PlaylistPage
-│     ├─pages/nav/                      # NavDestination sub-pages (audio/video/search/settings, etc.)
-│     ├─navigation/                     # NavPathStack route table
-│     ├─components/                     # Home page header, category tabs, floating tab bar, etc.
-│     ├─viewmodel/                      # HomeViewModel, PlaylistViewModel, and other orchestrators
-│     ├─constants/                      # Route constants, view constants
-│     └─utils/                          # ExternalWantResolver, NavRouterHelper
+│     ├─abilities/                      # Ability entry and UIAbility lifecycle management
+│     ├─pages/                          # Home page, default index page, playlist page, and other main pages
+│     ├─pages/nav/                      # NavDestination sub-pages, including audio/video/search/settings, etc.
+│     ├─navigation/                     # NavPathStack route table and page registration
+│     ├─components/                     # Home page components, including header, category tabs, floating tab bar, etc.
+│     ├─viewmodel/                      # Page-level business orchestration, including home and playlist ViewModels
+│     ├─constants/                      # Route name, view size, and other constants
+│     └─utils/                          # External Want resolution, navigation, and other utilities
 ├─feature                               # Feature Layer
 │  ├─media/                             # Media List Browsing
 │  │  └─src/main/ets/
-│  │     ├─components/                  # MediaAggregateView, MediaGridItem, etc.
-│  │     ├─manager/                     # MediaAggregateViewModel
-│  │     ├─constants/                   # Layout, sort, UI constants
-│  │     ├─datasource/                  # MediaViewArrayDataSource
-│  │     └─utils/                       # MediaSortDisplayUtil
+│  │     ├─components/                  # List and grid view components
+│  │     ├─manager/                     # Media list business orchestration and state management
+│  │     ├─constants/                   # Layout mode, sort rule, UI size, and other constants
+│  │     ├─datasource/                  # Media list data source adaptation
+│  │     └─utils/                       # Sort item display and other utilities
 │  ├─player/                            # Audio / Video Playback
 │  │  └─src/main/ets/
-│  │     ├─pages/                       # AudioPage, VideoPlayPage
-│  │     ├─component/                   # AudioPlayer, AVVideoPlayer, MiniPlayerBar, etc.
-│  │     ├─controller/                  # AVPlayerController, AudioPlayerController, VideoPlayerController
-│  │     ├─session/                     # AudioPlaybackSession, VideoPlaybackSession, etc.
-│  │     ├─viewmodel/                   # VideoPlaybackViewModel, VideoPipViewModel
-│  │     ├─view/                        # TitleBar, ToolButton
-│  │     ├─datasource/                  # PlaybackQueueDataSource
-│  │     ├─utils/                       # PlayerWindowModeUtil, VideoLayoutUtil, etc.
-│  │     └─constants/                   # Playback control, PiP, UI constants
+│  │     ├─pages/                       # Audio playback page, video playback page
+│  │     ├─component/                   # Video player and other player components
+│  │     ├─controller/                  # Playback control, including audio/video/common playback controllers
+│  │     ├─session/                     # AVSession media session and background playback management
+│  │     ├─viewmodel/                   # Video playback and PiP business orchestration
+│  │     ├─view/                        # Title bar, tool button, and other view components
+│  │     ├─datasource/                  # Playback queue data source adaptation
+│  │     ├─utils/                       # Window mode, video layout, and other utilities
+│  │     └─constants/                   # Playback control, PiP, UI size, and other constants
 │  ├─playlist/                          # Playlist Management
 │  │  └─src/main/ets/
-│  │     ├─components/                  # PlaylistView, PlaylistDetailView, PlaylistEditView, etc.
-│  │     ├─datasource/                  # PlaylistDataSource, PlaylistTrackDataSource
-│  │     ├─model/                       # PlaylistItem
-│  │     ├─constants/                   # PlaylistConstants
-│  │     └─utils/                       # PlaylistNameInputUtil
+│  │     ├─components/                  # Playlist list, detail, edit, and other components
+│  │     ├─datasource/                  # Playlist list and track data source adaptation
+│  │     ├─model/                       # Playlist data model
+│  │     ├─constants/                   # Playlist UI constants, including card style, grid layout, name input dialog, etc.
+│  │     └─utils/                       # Playlist name input validation and other utilities
 │  └─search/                            # Search
 │     └─src/main/ets/
-│        ├─components/                  # SearchOverlay, SearchResultItem
-│        ├─viewmodel/                   # SearchViewModel
-│        ├─manager/                     # SearchIndexCoordinator
-│        ├─utils/                       # SearchPreference
-│        └─constants/                   # Search UI, preference constants
+│        ├─components/                  # Search overlay, search result item, and other components
+│        ├─viewmodel/                   # Search business orchestration
+│        ├─manager/                     # Search index coordination management
+│        ├─utils/                       # Search preference configuration and other utilities
+│        └─constants/                   # Search UI, preference, and other constants
 ├─common                                # Common Capability Layer
 │  └─src/main/ets/
-│     ├─bridge/                         # DI bridge interface (IMediaListAccess)
-│     ├─cache/                          # Media list cache (MediaCacheManager)
-│     ├─component/                      # Shared UI components (EmptyStateView, SearchBar, NavBackButton, etc.)
-│     ├─constants/                      # Constants (AppTheme, Player, SupportedMedia, etc.)
-│     ├─context/                        # Global context holder (AppContext)
-│     ├─datasource/                     # Data source abstraction (IMediaDataSource, MediaDataSource, etc.)
-│     ├─listener/                       # File monitoring (FileListenerManager, FileSyncEngine)
-│     ├─model/                          # Data models (AudioItem, VideoItem, GroupFileInfo, etc.)
-│     ├─notification/                   # Notification management (MediaProgressNotificationHelper)
-│     ├─permission/                     # Permission management (MediaPermissionManager)
-│     ├─persistence/                    # Persistence (MediaDbManager/RDB, PlaybackHistory, DisplaySettings, etc.)
-│     ├─player/                         # Playback engine (PlaybackQueueManager, AVPlayerManager)
-│     ├─scan/                           # Scan task scheduling (MediaFileScanner, ScanStateManager, ScanTaskPool)
-│     ├─search/                         # Inverted index (SearchIndexManager)
-│     ├─storage/                        # Global storage (AppLocalStorage)
-│     ├─thumbnail/                      # Multi-level thumbnail cache (ThumbnailManager, DiskCache, MemoryCache)
-│     └─utils/                          # Utilities (HiLog, MediaMetadataResolver, DeviceConfigUtil, etc.)
+│     ├─bridge/                         # Dependency injection bridge interface
+│     ├─cache/                          # Media list cache management
+│     ├─component/                      # Shared UI components, including empty state, search bar, back button, etc.
+│     ├─constants/                      # Theme, player, supported media formats, and other constants
+│     ├─context/                        # Global context holder
+│     ├─datasource/                     # Data source abstraction and implementation
+│     ├─listener/                       # File monitoring and sync engine
+│     ├─model/                          # Data models, including audio item, video item, file info, etc.
+│     ├─notification/                   # Notification management, including progress notification, etc.
+│     ├─permission/                     # Permission management
+│     ├─persistence/                    # Persistence, including database management, playback history, display settings, etc.
+│     ├─player/                         # Playback engine, including playback queue management, AVPlayer management, etc.
+│     ├─scan/                           # Scan task scheduling, including scanner, state management, task pool, etc.
+│     ├─search/                         # Inverted index and search index management
+│     ├─storage/                        # Global local storage
+│     ├─thumbnail/                      # Multi-level thumbnail cache, including disk cache and memory cache
+│     └─utils/                          # Utilities, including logging, metadata parsing, device config, etc.
 ├─hvigor                                # Build tool configuration
 ├─signature                             # Signing certificate and profile
 ├─figures                               # Architecture/build documentation images
-├─build-profile.json5                   # Project-level SDK / signing / module configuration
+├─build-profile.json5                   # Project-level configuration
 ├─oh-package.json5
 ├─README.md                             # English documentation
 └─README_zh.md                          # Chinese documentation
@@ -394,12 +448,12 @@ applications_players
 
   | Permission | Authorization | Scenario |
   |------|---------|------|
-  | ohos.permission.READ_AUDIO | User grant | Read audio file metadata and content |
+  | ohos.permission.READ_AUDIO | User grant | Read audio file metadata and content for media list scanning and playback |
   | ohos.permission.WRITE_AUDIO | User grant | Create/manage audio files |
   | ohos.permission.READ_IMAGEVIDEO | User grant | Read video file metadata and content |
   | ohos.permission.WRITE_IMAGEVIDEO | User grant | Create/manage video files |
-  | ohos.permission.KEEP_BACKGROUND_RUNNING | System grant | Background playback and scanning task keep-alive |
-  | ohos.permission.NOTIFICATION_CONTROLLER | System grant | Playback notification and scan progress notification |
+  | ohos.permission.KEEP_BACKGROUND_RUNNING | System grant | Background audio playback and media scanning task keep-alive, preventing the process from being suspended |
+  | ohos.permission.NOTIFICATION_CONTROLLER | System grant | Playback notification and scan progress notification for control center and lock screen card display |
 
 - **Supported Media Formats**: Audio (m4a, aac, mp3, ogg, wav, amr), Video (mp4, mkv, ts)
 

@@ -9,7 +9,7 @@
 ### 核心能力
 
 **媒体列表浏览**
-- 自动扫描设备内音频与视频文件，支持媒体库扫描、沙箱扫描、公共目录扫描、用户文件扫描多种策略。
+- 自动扫描设备内音频与视频文件，支持媒体库、公共目录、用户文件多种扫描策略。
 - 批量导入时进度条实时更新，后台/锁屏场景显示进度通知。
 - 全部/音乐/视频分类 Tab 切换筛选，宫格与列表两种布局模式切换，支持按大小、时间、名称排序。
 - 音视频缩略图展示（视频首帧/音频封面），列表项字体与缩放跟随系统设置。
@@ -32,7 +32,7 @@
 - 歌单断点续播：进程终止后音频续播进度。
 
 **搜索**
-- 首页搜索入口，按文件名关键词模糊匹配，基于内存倒排索引实现高效检索。
+- 首页搜索入口，搜索范围为已扫描入库的媒体文件，基于内存倒排索引按文件名和艺术家名（含拼音首字母）模糊匹配，高效检索。
 - 命中结果按评分排序展示，支持高亮标记，点击跳转对应播放页。
 
 ## 架构说明
@@ -58,34 +58,46 @@
 | `pages/` | 首页、默认索引页、歌单页等主页面 |
 | `pages/nav/` | NavDestination 子页面，包括音频/视频/搜索/设置等 |
 | `navigation/` | NavPathStack 路由表与页面注册 |
-| `components/` | 首页组件，包括顶栏、分类 Tab、浮动 Tab 栾等 |
+| `components/` | 首页组件，包括顶栏、分类 Tab、浮动 Tab等 |
 | `viewmodel/` | 页面级业务编排，包括首页与歌单的 ViewModel |
 | `constants/` | 路由名称、视图尺寸等常量 |
 | `utils/` | 外部 Want 解析、导航跳转等工具 |
 
 **特性层模块说明**
 
-| 核心能力 | 关键类                                                                                                                                                                                      | 说明                      |
-|--------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------|
-| 媒体列表浏览 | MediaAggregateView、MediaAggregateViewModel、MediaViewArrayDataSource                                                                                                                      | 媒体列表/宫格视图、多策略扫描编排、筛选排序、多选删除         |
-| 音视频播放 | AudioPage/VideoPlayPage、AVPlayerController/AudioPlayerController/VideoPlayerController、AudioPlaybackSession/VideoPlaybackSession、PlaybackCallInterruptGuard/PlaybackVideoScreenLockGuard | 音频/视频播放页、AVSession 桥接、手势交互、PiP、来电/锁屏监听 |
-| 歌单管理 | PlaylistView/PlaylistDetailView/PlaylistEditView、PlaylistAddAudioView                                                                                                                    | 歌单列表/详情/编辑、曲目增删排序、断点续播         |
-| 搜索 | SearchBar/SearchOverlay、SearchViewModel、SearchIndexCoordinator                                                                                                                           | 倒排索引、评分排序、结果高亮              |
+| 核心能力 | 关键类                                                                                                                                                                                      | 说明                                                              |
+|--------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------|
+| 媒体列表浏览 | MediaAggregateView、MediaAggregateViewModel、MediaViewArrayDataSource                                                                                                                      | 媒体列表/宫格视图、多策略扫描编排、筛选排序、多选删除                                     |
+| 音视频播放 | AudioPage/VideoPlayPage、AVPlayerController/AudioPlayerController/VideoPlayerController、AudioPlaybackSession/VideoPlaybackSession、PlaybackCallInterruptGuard/PlaybackVideoScreenLockGuard | 音频/视频播放页、AVSession 桥接、手势交互、PiP、来电/锁屏监听                          |
+| 歌单管理 | PlaylistView/PlaylistDetailView/PlaylistEditView、PlaylistAddAudioView                                                                                                                    | 歌单由用户在 UI 创建并持久化到本地数据库，曲目引用已扫描媒体文件 URI；支持歌单列表/详情/编辑、曲目增删排序、断点续播 |
+| 搜索 | SearchBar/SearchOverlay、SearchViewModel、SearchIndexCoordinator                                                                                                                           | 倒排索引、评分排序、结果高亮                                                  |
 
 **公共层模块说明**
 
-| 核心能力 | 关键类                                                                                       | 说明                                                |
-|--------|-------------------------------------------------------------------------------------------|---------------------------------------------------|
-| 媒体扫描与监听 | MediaFileScanner、ScanStateManager、ScanTaskPool、FileListenerManager、FileSyncEngine         | 统一发现设备内媒体文件并维护扫描状态，扫描结果全局共享                       |
-| 系统上下文 | AppContext、IMediaListAccess                                                               | 全局单例持有 ability context 与依赖注入桥接，跨 feature 统一获取系统资源 |
-| 权限管理 | MediaPermissionManager                                                                    | 封装系统权限 API 并维护全局授权状态，保证各场景权限请求一致                  |
-| 数据库与持久化 | MediaDbManager、Rdb、PlaybackHistoryManager、AppLocalStorage                                 | 统一数据库句柄与表访问层，收敛数据写入入口                             |
-| 播放引擎 | PlaybackQueueManager、PlaybackResumeContext                                                | 播放队列与续播状态是跨页面的全局运行态，集中管理以保证切歌与续播在多入口下一致           |
-| 数据源与模型 | MediaDataSource、IMediaDataSource、FileInfo、AudioItem、VideoItem、MediaCacheManager           | 定义各 feature 共用的数据模型                               |
-| 搜索索引 | SearchIndexManager                                                                        | 倒排索引构建与检索，索引数据全局维护                                |
-| 通知 | MediaProgressNotificationHelper、MediaProgressBackgroundHelper、MediaProgressLiveViewHelper | 统一通知渠道与样式                                         |
-| 公共UI组件 | EmptyStateView、SearchBar、NavBackButton、SwipeDeleteEndAction                               | 无业务状态的纯展示控件，如搜索框、按钮，可被任意页面组合                      |
-| 工具集 | MediaMetadataResolver、SearchScorer、ThumbnailManager、DeviceConfigUtil、AppThemeConstants    | 无状态纯函数工具，任意模块可调用，含元数据解析、缩略图加载、拼音转换缓存等                                  |
+| 核心能力 | 关键类                                                                                       | 说明                                                    |
+|--------|-------------------------------------------------------------------------------------------|-------------------------------------------------------|
+| 媒体扫描与监听 | MediaFileScanner、ScanStateManager、ScanTaskPool、FileListenerManager、FileSyncEngine         | 扫描设备内媒体文件（详见「媒体扫描与存储」），文件监听器监听媒体库/用户文件变更并实时同步到数据库 |
+| 系统上下文 | AppContext、IMediaListAccess                                                               | 全局单例持有上下文对象；通过依赖注入桥接，让特性层无需跨模块依赖即可获取媒体列表数据            |
+| 权限管理 | MediaPermissionManager                                                                    | 封装媒体相关权限请求，维护全局授权状态，保证扫描与播放场景权限请求一致                   |
+| 数据库与持久化 | MediaDbManager、Rdb、PlaybackHistoryManager、AppLocalStorage                                 | 统一数据库句柄与表访问层，含播放历史与续播进度记录及播放页 UI 状态存储                 |
+| 播放引擎 | PlaybackQueueManager、PlaybackResumeContext                                                | 播放队列与续播状态是跨页面的全局运行态，集中管理以保证从歌单、搜索、文件管理器等多入口切歌时队列与续播一致 |
+| 数据源与模型 | MediaDataSource、IMediaDataSource、FileInfo、AudioItem、VideoItem、MediaCacheManager           | 定义各 feature 共用的数据模型与媒体列表数据源抽象                         |
+| 搜索索引 | SearchIndexManager                                                                        | 对已扫描媒体文件构建内存倒排索引（文件名+艺术家名，含拼音首字母），索引每次启动从媒体列表重建       |
+| 通知 | MediaProgressNotificationHelper、MediaProgressBackgroundHelper、MediaProgressLiveViewHelper | 统一扫描进度通知与播放进度通知渠道与样式，覆盖通知栏、后台与锁屏实时卡片                  |
+| 公共UI组件 | EmptyStateView、SearchBar、NavBackButton、SwipeDeleteEndAction                               | 无业务状态的纯展示控件：如空状态页、搜索栏、返回按钮、滑动删除，可被任意页面组合              |
+| 工具集 | MediaMetadataResolver、SearchScorer、ThumbnailManager、DeviceConfigUtil、AppThemeConstants    | 无状态纯函数工具：如媒体元数据解析、搜索评分、缩略图加载、设备配置、主题常量                |
+
+### 媒体扫描与存储
+
+播放器通过三种扫描策略发现设备内媒体文件，扫描范围与实现方式如下：
+
+| 扫描策略 | API | 扫描范围 |
+|---------|-----|---------|
+| 媒体库扫描 | @ohos.file.photoAccessHelper | 系统相册视频资源 |
+| 用户文件扫描 | @ohos.filemanagement.userFileManager | 系统用户文件管理器注册的音频与视频资产 |
+| 公共目录扫描 | @ohos.file.fileAccess | 遍历 `file://docs` 目录树，补充用户文件扫描未收录的文件 |
+
+扫描结果仅存储文件元数据到本地数据库做持久化存储。源文件删除或移动时软删除，重新出现可恢复。内存缓存与搜索索引每次启动从数据库重建。
 
 ### 与其它应用的关系
 
@@ -293,57 +305,22 @@ hvigorw assembleHap
 
 **步骤2：配置 / 确认 Ability 入口（让系统能「找得到」本能力）**
 
-业务逻辑若在 HAR 内，**外部仍只会拉起 `entry` 里声明的 Ability**。因此要核对 `entry/src/main/module.json5`：
+业务逻辑若在 HAR 内，**外部仍只会拉起 `entry` 里声明的 Ability**。因此要核对 `entry/src/main/module.json5` 两个关键点：
 
-- 现有 `MainAbility` 是否覆盖场景；新场景若需新的 Ability / skills / Want 过滤器，在此声明，否则外部 Want **无法拉起**。
-- 权限是否足够：例如后台定时仍依赖 `KEEP_BACKGROUND_RUNNING`，通知依赖 `NOTIFICATION_CONTROLLER`。
+1. **Ability 是否覆盖**：现有 `MainAbility` 是否覆盖新场景；若需新的 Ability / skills / Want 过滤器，在此声明，否则外部 Want **无法拉起**。
+2. **权限是否足够**：新能力可能需要额外权限。
 
-现有入口示意：
+**以睡眠定时为例**：该能力由播放页内部触发，无需新增 Ability 或 skills —— 现有 `MainAbility` 已覆盖播放页入口，`KEEP_BACKGROUND_RUNNING`（后台定时保活）与 `NOTIFICATION_CONTROLLER`（到期通知）权限均已声明，因此步骤2仅需**确认**现有配置，无需修改。
 
-    ```json
-    {
-      "module": {
-        "name": "entry",
-        "type": "entry",
-        "mainElement": "MainAbility",
-        "deviceTypes": [
-          "default",
-          "tablet"
-        ],
-        "abilities": [
-          {
-            "name": "MainAbility",
-            "srcEntry": "./ets/abilities/mainability/MainAbility.ets",
-            "exported": true,
-            "skills": [
-              {
-                "entities": ["entity.system.home"],
-                "actions": ["ohos.want.action.home"]
-              },
-              {
-                "entities": ["entity.system.browsable", "entity.system.default"],
-                "actions": ["ohos.want.action.viewData"],
-                "uris": [
-                  { "scheme": "file", "type": "audio/*" },
-                  { "scheme": "file", "type": "video/*" }
-                ]
-              }
-            ]
-          }
-        ],
-        "requestPermissions": [
-          { "name": "ohos.permission.READ_AUDIO" },
-          { "name": "ohos.permission.WRITE_AUDIO" },
-          { "name": "ohos.permission.READ_IMAGEVIDEO" },
-          { "name": "ohos.permission.WRITE_IMAGEVIDEO" },
-          { "name": "ohos.permission.FILE_ACCESS_MANAGER" },
-          { "name": "ohos.permission.INTERNET" },
-          { "name": "ohos.permission.KEEP_BACKGROUND_RUNNING" },
-          { "name": "ohos.permission.NOTIFICATION_CONTROLLER" }
-        ]
-      }
-    }
-    ```
+若新能力需要被外部应用直接拉起（如桌面快捷方式），则需在 `module.json5` 的 `skills` 数组中新增对应 action 过滤器，并在 `requestPermissions` 中补充缺失权限：
+
+```json
+// module.json5 — skills 新增一项（示意）
+{
+  "actions": ["ohos.want.action.sleepTimer"],
+  "entities": ["entity.system.default"]
+}
+```
 
 **步骤3：定制 UI**
 
@@ -377,15 +354,14 @@ applications_players
 │     ├─components/                     # 首页组件，包括顶栏、分类 Tab、浮动 Tab 栏等
 │     ├─viewmodel/                      # 页面级业务编排，包括首页与歌单的 ViewModel
 │     ├─constants/                      # 路由名称、视图尺寸等常量
-│     └─utils/                          # 外部 Want 解析、导航跳转等工具
+│     └─utils/                          # 外部 Want 解析（文件管理器「打开方式」）、统一导航跳转、歌单封面解析
 ├─feature                               # 特性层
 │  ├─media/                             # 媒体列表浏览
 │  │  └─src/main/ets/
 │  │     ├─components/                  # 列表与宫格视图组件
 │  │     ├─manager/                     # 媒体列表业务编排与状态管理
 │  │     ├─constants/                   # 布局模式、排序规则、UI 尺寸等常量
-│  │     ├─datasource/                  # 媒体列表数据源适配
-│  │     └─utils/                       # 排序项展示等工具
+│  │     └─datasource/                  # 媒体列表 LazyForEach 数据源适配
 │  ├─player/                            # 音视频播放
 │  │  └─src/main/ets/
 │  │     ├─pages/                       # 音频播放页、视频播放页
@@ -393,33 +369,33 @@ applications_players
 │  │     ├─controller/                  # 播放控制，包括音频/视频/通用播放控制器
 │  │     ├─session/                     # AVSession 媒体会话与后台播放管理
 │  │     ├─viewmodel/                   # 视频播放与画中画业务编排
-│  │     ├─view/                        # 标题栏、工具按钮等视图组件
-│  │     ├─datasource/                  # 播放队列数据源适配
-│  │     ├─utils/                       # 窗口模式、视频布局等工具
+│  │     ├─view/                        # 播放页应用栏：标题栏（返回+标题+操作按钮）与工具按钮
+│  │     ├─datasource/                  # 播放队列半模态 LazyForEach 数据源，支持拖拽排序与当前曲目高亮
+│  │     ├─utils/                       # 窗口模式检测（分屏/浮窗/PC）、视频宽高比与画中画尺寸计算、媒体标题解析
 │  │     └─constants/                   # 播放控制、画中画、UI 尺寸等常量
 │  ├─playlist/                          # 歌单管理
 │  │  └─src/main/ets/
 │  │     ├─components/                  # 歌单列表、详情、编辑等组件
-│  │     ├─datasource/                  # 歌单列表与曲目数据源适配
-│  │     ├─model/                       # 歌单数据模型
+│  │     ├─datasource/                  # 歌单卡片与曲目 LazyForEach 数据源，支持拖拽排序
+│  │     ├─model/                       # 歌单卡片数据模型（id、名称、曲目数、封面 URI）
 │  │     ├─constants/                   # 歌单 UI 常量，包括卡片样式、网格布局、名称输入弹窗等
-│  │     └─utils/                       # 歌单名称输入校验等工具
+│  │     └─utils/                       # 歌单名称输入校验（过滤非法字符、限制长度）
 │  └─search/                            # 搜索
 │     └─src/main/ets/
 │        ├─components/                  # 搜索浮层、搜索结果项等组件
 │        ├─viewmodel/                   # 搜索业务编排
-│        ├─manager/                     # 搜索索引协调管理
-│        ├─utils/                       # 搜索偏好配置等工具
+│        ├─manager/                     # 搜索索引协调器：从媒体缓存构建倒排索引，按类型检索（音频/视频）
+│        ├─utils/                       # 搜索历史与快捷搜索词持久化（基于 Preferences）
 │        └─constants/                   # 搜索 UI、偏好等常量
 ├─common                                # 公共能力层
 │  └─src/main/ets/
-│     ├─bridge/                         # 依赖注入桥接接口
-│     ├─cache/                          # 媒体列表缓存管理
+│     ├─bridge/                         # 依赖注入桥接接口，供特性层访问媒体列表数据
+│     ├─cache/                          # 媒体列表内存缓存（5分钟TTL，按媒体类型分区），避免重复扫描
 │     ├─component/                      # 通用 UI 组件，包括空状态、搜索栏、返回按钮等
 │     ├─constants/                      # 主题、播放器、支持的媒体格式等常量
 │     ├─context/                        # 全局上下文持有者
 │     ├─datasource/                     # 数据源抽象与实现
-│     ├─listener/                       # 文件监听与同步引擎
+│     ├─listener/                       # 文件变更监听（媒体库/用户文件）与数据库同步引擎
 │     ├─model/                          # 数据模型，包括音频项、视频项、文件信息等
 │     ├─notification/                   # 通知管理，包括进度通知等
 │     ├─permission/                     # 权限管理
@@ -427,7 +403,7 @@ applications_players
 │     ├─player/                         # 播放引擎，包括播放队列管理、AVPlayer 管理等
 │     ├─scan/                           # 扫描任务调度，包括扫描器、状态管理、任务池等
 │     ├─search/                         # 倒排索引与搜索索引管理
-│     ├─storage/                        # 全局本地存储
+│     ├─storage/                        # 全局 LocalStorage，存储播放页 UI 状态（全屏、安全区、后台标记等）
 │     ├─thumbnail/                      # 缩略图多级缓存，包括磁盘缓存与内存缓存
 │     └─utils/                          # 通用工具，包括日志、元数据解析、设备配置等
 ├─hvigor                                # 构建工具配置
@@ -456,6 +432,7 @@ applications_players
   | ohos.permission.NOTIFICATION_CONTROLLER | 系统授权 | 播放通知与扫描进度通知，供播控中心与锁屏卡片展示 |
 
 - **支持的媒体格式**：音频（m4a、aac、mp3、ogg、wav、amr）、视频（mp4、mkv、ts）
+- **不支持的功能**：分布式/跨设备播放、歌词导入与显示、在线流媒体播放
 
 
 ## 参与贡献

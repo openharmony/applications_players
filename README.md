@@ -2,7 +2,7 @@
 
 ## Introduction
 
-**Player** (package: `com.ohos.players`) is a pre-installed **system application** in OpenHarmony, providing media list browsing, audio/video playback, playlist management, and search capabilities across phone and tablet devices.
+**Player** (bundle name: `com.ohos.players`) is a pre-installed **system application** in OpenHarmony, providing media list browsing, audio/video playback, playlist management, and search capabilities across phone and tablet devices.
 
 This is a system pre-installed application. Users can enter the Player from the desktop icon, File Manager's "Open with" action, and other entry points.
 
@@ -89,7 +89,7 @@ The overall structure is divided into three layers: Product Layer, Feature Layer
 
 ### Media Scanning & Storage
 
-The player discovers on-device media files through four scanning strategies:
+The player discovers on-device media files through three scanning strategies:
 
 | Strategy | API | Scan Scope |
 |---------|-----|------------|
@@ -132,7 +132,7 @@ hvigorw assembleHap
 
 ## Player Development
 
-Player is developed using **ArkTS**, with the UI built on the ArkUI Stage model. The application hosts the main interface through `MainAbility`, completes media browsing and playback through `feature/media` / `feature/player`, and maintains data, scanning, and playback engine capabilities through `common`. Reference: [ArkUI Development Overview](https://gitcode.com/openharmony/docs/blob/master/zh-cn/application-dev/ui/arkts-ui-development-overview.md)
+Player is developed using **ArkTS**, with the UI built on the ArkUI Stage model. The application hosts the main interface through `MainAbility`, completes media browsing and playback through `feature/media` / `feature/player`, and maintains data, scanning, and playback engine capabilities through `common`. Reference: [ArkUI Development Overview](https://gitcode.com/openharmony/docs/blob/master/en/application-dev/ui/arkts-ui-development-overview.md)
 
 ### Development Based on Existing Modules
 
@@ -217,13 +217,19 @@ Some common modification scenarios are listed below:
     ```typescript
     // SearchScorer.ets — search scoring algorithm
     public static scoreFile(file: FileInfo, keywords: string[]): MatchResult {
+      const fileName: string = PinyinConverter.getFileNameWithoutSuffix(file.fileName || '');
+      // ...
       let totalScore: number = 0;
+      const matchedKeywords: string[] = [];
+      const highlightRanges: HighlightRange[] = [];
+
       for (const keyword of keywords) {
         // [Modify] Increase file name match weight
         const nameMatch = SearchMatchEngine.matchText(fileName, keyword.toLowerCase());
         if (nameMatch.matched && nameMatch.score > 0) {
           totalScore += nameMatch.score * SearchScorer.FIELD_WEIGHT_FILE_NAME / 100;
           matchedKeywords.push(keyword);
+          // ...
         }
       }
       return { score: totalScore, matchedKeywords: matchedKeywords, highlightRanges: highlightRanges };
@@ -310,7 +316,7 @@ Even if the business logic lives in a HAR, **externals still only launch Abiliti
 1. **Ability coverage**: Whether the existing `MainAbility` covers the new scenario; if a new Ability / skills / Want filter is needed, declare it here, otherwise external Wants **cannot launch** it.
 2. **Permission sufficiency**: The new capability may require additional permissions.
 
-**Sleep-timer example**: This capability is triggered internally from the playback page — no new Ability or skills are needed. The existing `MainAbility` already covers the playback page entry, and `KEEP_BACKGROUND_RUNNING` (background timer keep-alive) and `NOTIFICATION_CONTROLLER` (expiry notification) permissions are already declared. Therefore Step 2 only requires **confirming** the existing configuration — no changes needed.
+**Sleep-timer example**: This capability is triggered internally from the playback page — no new Ability or skills are needed. The existing `MainAbility` already covers the playback page entry, and `ohos.permission.KEEP_BACKGROUND_RUNNING` (background timer keep-alive) and `ohos.permission.NOTIFICATION_CONTROLLER` (expiry notification) permissions are already declared. Therefore Step 2 only requires **confirming** the existing configuration — no changes needed.
 
 If the new capability needs to be launched directly by external apps (e.g. a desktop shortcut), add the corresponding action filter to the `skills` array in `module.json5` and add any missing permissions to `requestPermissions`:
 
@@ -437,4 +443,4 @@ applications_players
 
 ## Contributing
 
-Contributions of code, documentation, and more are welcome. For the specific contribution process and methods, please refer to [Contributing](https://gitcode.com/openharmony/docs/blob/master/zh-cn/contribute/%E5%8F%82%E4%B8%8E%E8%B4%A1%E7%8C%AE.md).
+Contributions of code, documentation, and more are welcome. For the specific contribution process and methods, please refer to [Contributing](https://gitcode.com/openharmony/docs/blob/master/en/contribute/contributing.md).

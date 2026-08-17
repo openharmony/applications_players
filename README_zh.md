@@ -217,13 +217,19 @@ hvigorw assembleHap
     ```typescript
     // SearchScorer.ets — 搜索评分算法
     public static scoreFile(file: FileInfo, keywords: string[]): MatchResult {
+      const fileName: string = PinyinConverter.getFileNameWithoutSuffix(file.fileName || '');
+      // ...
       let totalScore: number = 0;
+      const matchedKeywords: string[] = [];
+      const highlightRanges: HighlightRange[] = [];
+
       for (const keyword of keywords) {
         // 调高文件名匹配权重
         const nameMatch = SearchMatchEngine.matchText(fileName, keyword.toLowerCase());
         if (nameMatch.matched && nameMatch.score > 0) {
           totalScore += nameMatch.score * SearchScorer.FIELD_WEIGHT_FILE_NAME / 100;
           matchedKeywords.push(keyword);
+          // ...
         }
       }
       return { score: totalScore, matchedKeywords: matchedKeywords, highlightRanges: highlightRanges };
@@ -310,7 +316,7 @@ hvigorw assembleHap
 1. **Ability 是否覆盖**：现有 `MainAbility` 是否覆盖新场景；若需新的 Ability / skills / Want 过滤器，在此声明，否则外部 Want **无法拉起**。
 2. **权限是否足够**：新能力可能需要额外权限。
 
-**以睡眠定时为例**：该能力由播放页内部触发，无需新增 Ability 或 skills —— 现有 `MainAbility` 已覆盖播放页入口，`KEEP_BACKGROUND_RUNNING`（后台定时保活）与 `NOTIFICATION_CONTROLLER`（到期通知）权限均已声明，因此步骤2仅需**确认**现有配置，无需修改。
+**以睡眠定时为例**：该能力由播放页内部触发，无需新增 Ability 或 skills —— 现有 `MainAbility` 已覆盖播放页入口，`ohos.permission.KEEP_BACKGROUND_RUNNING`（后台定时保活）与 `ohos.permission.NOTIFICATION_CONTROLLER`（到期通知）权限均已声明，因此步骤2仅需**确认**现有配置，无需修改。
 
 若新能力需要被外部应用直接拉起（如桌面快捷方式），则需在 `module.json5` 的 `skills` 数组中新增对应 action 过滤器，并在 `requestPermissions` 中补充缺失权限：
 

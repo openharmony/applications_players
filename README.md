@@ -1,182 +1,182 @@
-# Player
+# 播放器（Player）
 
-## Introduction
+## 简介
 
-**Player** (bundle name: `com.ohos.players`) is a pre-installed **system application** in OpenHarmony, providing media list browsing, audio/video playback, playlist management, and search capabilities across phone and tablet devices.
+**播放器**（包名：`com.ohos.players`）是 OpenHarmony 中预置的**系统应用**，提供媒体列表浏览、音视频播放、歌单管理与搜索等能力，适配手机、平板设备形态。
 
-This is a system pre-installed application. Users can enter the Player from the desktop icon, File Manager's "Open with" action, and other entry points.
+本应用为系统预置应用，用户可从桌面图标、文件管理器「打开方式」等场景进入播放器。
 
-### Core Capabilities
+### 核心能力
 
-**Media List Browsing**
-- Automatically scans audio and video files on the device, supporting media library, public storage, and user file scanning strategies.
-- Real-time progress bar during batch import; progress notifications in background and lock-screen scenarios.
-- Category tabs (All / Music / Video) with switchable grid and list layouts; sorting by size, time, or name.
-- Thumbnail display for audio/video (video first frame / audio cover art); font and scaling follow system settings.
-- Single-item deletion, multi-selection deletion, and swipe-to-select deletion.
+**媒体列表浏览**
+- 自动扫描设备内音频与视频文件，支持媒体库、公共目录、用户文件多种扫描策略。
+- 批量导入时进度条实时更新，后台/锁屏场景显示进度通知。
+- 全部/音乐/视频分类 Tab 切换筛选，宫格与列表两种布局模式切换，支持按大小、时间、名称排序。
+- 音视频缩略图展示（视频首帧/音频封面），列表项字体与缩放跟随系统设置。
+- 支持单选删除、多选删除与滑动多选删除。
 
-**Audio / Video Playback**
-- Local path playback with auto-play; tap an audio/video file to enter the corresponding playback page.
-- Playback modes: Sequential, List Loop, Single Loop, Shuffle.
-- Multi-speed playback with audio-video sync for video and noise-free audio.
-- Automatic landscape/portrait adaptation for video without interruption; audio page supports collapsing to a mini-player bar.
-- Gesture controls for brightness and volume; long-press for temporary speed boost.
-- Control center (AVSession) displays cover art and playback controls, supporting background audio playback with notification bar.
-- Picture-in-Picture (PiP) floating window for video playback, supporting split-screen mode.
-- Auto-pause/resume on incoming calls; auto-pause/resume video on screen lock.
-- Supports direct playback from File Manager's "Open with" action.
+**音视频播放**
+- 支持本地路径播放，点击音频/视频文件进入对应播放页并自动起播。
+- 播放模式：顺序播放、列表循环、单曲循环、随机播放。
+- 倍速播放多档可选，音频无杂音，视频音画同步。
+- 视频横竖屏自动适配，播放不中断；音频页支持收起为迷你播放条。
+- 手势调节亮度与音量、长按临时倍速。
+- 播控中心（AVSession）展示封面与播控按钮，支持后台音频播放与通知栏提示。
+- 视频画中画（PiP）悬浮小窗继续播放，支持分屏模式。
+- 来电监听自动暂停/恢复播放，锁屏监听暂停/恢复视频。
+- 支持从文件管理器「打开方式」直接唤起播放器并播放音视频文件。
 
-**Playlist Management**
-- Create multiple named playlists with independent track maintenance.
-- Multi-selection deletion and long-press drag-to-reorder within playlists.
-- Playlist resume: audio playback progress is preserved after process termination.
+**歌单管理**
+- 支持创建多个命名歌单并独立维护曲目。
+- 歌单内支持多选删除、长按拖动排序。
+- 歌单断点续播：进程终止后音频续播进度。
 
-**Search**
-- Home page search entry; search scope covers all scanned media files in the library, with fuzzy keyword matching by file name and artist name (with pinyin-initial support for Chinese) via in-memory inverted index for efficient retrieval.
-- Results sorted by relevance score with highlighted matches; tap to navigate to the corresponding playback page.
+**搜索**
+- 首页搜索入口，搜索范围为已扫描入库的媒体文件，基于内存倒排索引按文件名和艺术家名（含拼音首字母）模糊匹配，高效检索。
+- 命中结果按评分排序展示，支持高亮标记，点击跳转对应播放页。
 
-## Architecture
+## 架构说明
 
-The Player adopts a layered and modular design, organizing code by product form, business features, and common capabilities, as illustrated below:
-![Architecture](./figures/Player_en.png)
+播放器采用分层与模块化设计，按产品形态、业务特性与公共能力组织代码，如图：
+![架构说明](docs/figures/Player.png)
 
-### Application Layer Design
+### 应用层分层设计
 
-The overall structure is divided into three layers: Product Layer, Feature Layer, and Common Layer:
+整体可划分为产品层、特性层、公共层：
 
-| Layer | Key Directories | Responsibilities                                     |
-|------| -------------- |----------------------------------------|
-| Product Layer | `entry` | Phone and tablet share the same HAP entry: hosts the application entry, main pages, Ability lifecycle, and page navigation.     |
-| Feature Layer | `feature/media`, `feature/player`, `feature/search`, `feature/playlist` | Media List Browsing, Audio/Video Playback, Search, Playlist Management.     |
-| Common Layer | `common` | Media scanning & monitoring, system context, permission management, database & persistence, playback engine, data source & model, search index, notifications, common UI components, utilities. |
+| 层次 | 主要目录 | 说明                                                                                |
+|------| -------------- |-----------------------------------------------------------------------------------|
+| 产品层 | `entry` | 手机、平板同一hap入口：承载应用入口、主页面、Ability 生命周期与页面导航。                                        |
+| 特性层 | `feature/media`、`feature/player`、`feature/search`、`feature/playlist` | 媒体列表浏览、音视频播放、搜索、歌单管理。                                                             |
+| 公共层 | `common` | 媒体扫描与监听、系统上下文、权限管理、数据库与持久化、播放引擎、数据源与模型、搜索索引、通知、公共UI组件、工具集。 |
 
-**Product Layer Module Details**
+**产品层模块说明**
 
-| Directory / Component | Description |
+| 目录 / 组件 | 说明 |
 |-------------|------|
-| `abilities/` | `MainAbility` entry; hosts UIAbility lifecycle |
-| `pages/` | Main page, default index page, playlist page, and other main pages |
-| `pages/nav/` | NavDestination sub-pages, including audio/video/search/settings, etc. |
-| `navigation/` | NavPathStack route table and page registration |
-| `components/` | Home page components, including header, category tabs, floating tab bar, etc. |
-| `viewmodel/` | Page-level business orchestration, including home and playlist ViewModels |
-| `constants/` | Route name, view size, and other constants |
-| `utils/` | External Want resolution, navigation, and other utilities |
+| `abilities/` | `MainAbility` 入口，承载 UIAbility 生命周期 |
+| `pages/` | 首页、默认索引页、歌单页等主页面 |
+| `pages/nav/` | NavDestination 子页面，包括音频/视频/搜索/设置等 |
+| `navigation/` | NavPathStack 路由表与页面注册 |
+| `components/` | 首页组件，包括顶栏、分类 Tab、浮动 Tab等 |
+| `viewmodel/` | 页面级业务编排，包括首页与歌单的 ViewModel |
+| `constants/` | 路由名称、视图尺寸等常量 |
+| `utils/` | 外部 Want 解析、导航跳转等工具 |
 
-**Feature Layer Module Details**
+**特性层模块说明**
 
-| Core Capability   | Key Classes       | Description                      |
-|--------|----------------|-------------------------|
-| Media List Browsing | MediaAggregateView, MediaAggregateViewModel, MediaViewArrayDataSource    | Media list/grid view, multi-strategy scan orchestration, filtering & sorting, multi-select delete         |
-| Audio / Video Playback | AudioPage/VideoPlayPage, AVPlayerController/AudioPlayerController/VideoPlayerController, AudioPlaybackSession/VideoPlaybackSession, PlaybackCallInterruptGuard/PlaybackVideoScreenLockGuard | Audio/video playback pages, AVSession bridge, gesture interaction, PiP, call/screen-lock monitoring |
-| Playlist Management | PlaylistView/PlaylistDetailView/PlaylistEditView, PlaylistAddAudioView | Playlists are user-created via UI and persisted to local RDB (playlist/playlist_item tables); tracks reference URIs of scanned media files (from the media_metadata table). Supports playlist list/detail/edit, track add/remove/reorder, playback resume         |
-| Search | SearchBar/SearchOverlay, SearchViewModel, SearchIndexCoordinator | Inverted index, relevance scoring, result highlighting              |
+| 核心能力 | 关键类                                                                                                                                                                                      | 说明                                                              |
+|--------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------|
+| 媒体列表浏览 | MediaAggregateView、MediaAggregateViewModel、MediaViewArrayDataSource                                                                                                                      | 媒体列表/宫格视图、多策略扫描编排、筛选排序、多选删除                                     |
+| 音视频播放 | AudioPage/VideoPlayPage、AVPlayerController/AudioPlayerController/VideoPlayerController、AudioPlaybackSession/VideoPlaybackSession、PlaybackCallInterruptGuard/PlaybackVideoScreenLockGuard | 音频/视频播放页、AVSession 桥接、手势交互、PiP、来电/锁屏监听                          |
+| 歌单管理 | PlaylistView/PlaylistDetailView/PlaylistEditView、PlaylistAddAudioView                                                                                                                    | 歌单由用户在 UI 创建并持久化到本地数据库，曲目引用已扫描媒体文件 URI；支持歌单列表/详情/编辑、曲目增删排序、断点续播 |
+| 搜索 | SearchBar/SearchOverlay、SearchViewModel、SearchIndexCoordinator                                                                                                                           | 倒排索引、评分排序、结果高亮                                                  |
 
-**Common Layer Module Details**
+**公共层模块说明**
 
-| Core Capability | Key Classes | Description |
-|--------|------|------|
-| Media Scanning & Monitoring | MediaFileScanner, ScanStateManager, ScanTaskPool, FileListenerManager, FileSyncEngine | Scans on-device media files (see "Media Scanning & Storage" below); file listeners watch media-library/user-file changes and sync to the database in real time |
-| System Context | AppContext, IMediaListAccess | Global singleton holding the ability context; provides a DI bridge (IMediaListAccess) so feature modules can access the media list without cross-module dependencies |
-| Permission Management | MediaPermissionManager | Wraps READ_AUDIO / READ_IMAGEVIDEO and other permission requests; maintains global authorization state to ensure consistent prompts across scan and playback scenarios |
-| Database & Persistence | MediaDbManager, Rdb, PlaybackHistoryManager, AppLocalStorage | Unifies the media.db handle and table access layer (media_metadata, playlist, playlist_item, play_history); includes playback history & resume progress tracking and player page UI state storage |
-| Playback Engine | PlaybackQueueManager, PlaybackResumeContext | The playback queue and resume state are cross-page global runtime state; centralized so that track switching and resume stay consistent across entry points (playlist, search, File Manager) |
-| Data Source & Model | MediaDataSource, IMediaDataSource, FileInfo, AudioItem, VideoItem, MediaCacheManager | Defines data models shared by all features and the media list data source abstraction; includes a 5-min TTL in-memory cache to avoid redundant scans |
-| Search Index | SearchIndexManager | Builds in-memory inverted index over scanned media files (file name + artist name, with pinyin-initial support for Chinese); index is rebuilt from the media list on each app launch |
-| Notifications | MediaProgressNotificationHelper, MediaProgressBackgroundHelper, MediaProgressLiveViewHelper | Unifies scan progress and playback progress notification channels and styles, covering notification bar, background, and lock-screen live cards |
-| Common UI Components | EmptyStateView, SearchBar, NavBackButton, SwipeDeleteEndAction | Stateless presentational widgets: empty-state page, search bar, back button, swipe-delete action; composable by any page |
-| Utilities | MediaMetadataResolver, SearchScorer, ThumbnailManager, DeviceConfigUtil, AppThemeConstants | Stateless pure-function utilities: media metadata parsing, search scoring, thumbnail loading, device config, theme constants |
+| 核心能力 | 关键类                                                                                       | 说明                                                    |
+|--------|-------------------------------------------------------------------------------------------|-------------------------------------------------------|
+| 媒体扫描与监听 | MediaFileScanner、ScanStateManager、ScanTaskPool、FileListenerManager、FileSyncEngine         | 扫描设备内媒体文件（详见「媒体扫描与存储」），文件监听器监听媒体库/用户文件变更并实时同步到数据库 |
+| 系统上下文 | AppContext、IMediaListAccess                                                               | 全局单例持有上下文对象；通过依赖注入桥接，让特性层无需跨模块依赖即可获取媒体列表数据            |
+| 权限管理 | MediaPermissionManager                                                                    | 封装媒体相关权限请求，维护全局授权状态，保证扫描与播放场景权限请求一致                   |
+| 数据库与持久化 | MediaDbManager、Rdb、PlaybackHistoryManager、AppLocalStorage                                 | 统一数据库句柄与表访问层，含播放历史与续播进度记录及播放页 UI 状态存储                 |
+| 播放引擎 | PlaybackQueueManager、PlaybackResumeContext                                                | 播放队列与续播状态是跨页面的全局运行态，集中管理以保证从歌单、搜索、文件管理器等多入口切歌时队列与续播一致 |
+| 数据源与模型 | MediaDataSource、IMediaDataSource、FileInfo、AudioItem、VideoItem、MediaCacheManager           | 定义各 feature 共用的数据模型与媒体列表数据源抽象                         |
+| 搜索索引 | SearchIndexManager                                                                        | 对已扫描媒体文件构建内存倒排索引（文件名+艺术家名，含拼音首字母），索引每次启动从媒体列表重建       |
+| 通知 | MediaProgressNotificationHelper、MediaProgressBackgroundHelper、MediaProgressLiveViewHelper | 统一扫描进度通知与播放进度通知渠道与样式，覆盖通知栏、后台与锁屏实时卡片                  |
+| 公共UI组件 | EmptyStateView、SearchBar、NavBackButton、SwipeDeleteEndAction                               | 无业务状态的纯展示控件：如空状态页、搜索栏、返回按钮、滑动删除，可被任意页面组合              |
+| 工具集 | MediaMetadataResolver、SearchScorer、ThumbnailManager、DeviceConfigUtil、AppThemeConstants    | 无状态纯函数工具：如媒体元数据解析、搜索评分、缩略图加载、设备配置、主题常量                |
 
-### Media Scanning & Storage
+### 媒体扫描与存储
 
-The player discovers on-device media files through three scanning strategies:
+播放器通过三种扫描策略发现设备内媒体文件，扫描范围与实现方式如下：
 
-| Strategy | API | Scan Scope |
-|---------|-----|------------|
-| Media library scan | @ohos.file.photoAccessHelper | System gallery video assets |
-| User file scan | @ohos.filemanagement.userFileManager | Queries audio and video assets on the device by type (duration > 0) |
-| Public storage scan | @ohos.file.fileAccess | Traverses `file://docs` directory tree to supplement files not covered by user file scan |
+| 扫描策略 | API | 扫描范围 |
+|---------|-----|---------|
+| 媒体库扫描 | @ohos.file.photoAccessHelper | 系统相册视频资源 |
+| 用户文件扫描 | @ohos.filemanagement.userFileManager | 系统用户文件管理器注册的音频与视频资产 |
+| 公共目录扫描 | @ohos.file.fileAccess | 遍历 `file://docs` 目录树，补充用户文件扫描未收录的文件 |
 
-Scan results store only file metadata (not file content) to the local RDB `media_metadata` table, persisted across restarts. When a source file is deleted or moved, its record is soft-deleted (`is_valid=0`) and can be restored if the file reappears. In-memory cache and search index are rebuilt from the database on each launch.
+扫描结果仅存储文件元数据到本地数据库做持久化存储。源文件删除或移动时软删除，重新出现可恢复。内存缓存与搜索索引每次启动从数据库重建。
 
-### Relationship with Other Applications
+### 与其它应用的关系
 
-System apps can invoke this app. The prerequisite is that the app is installed, and playing audio/video requires the user to grant the corresponding media permissions.
+允许系统侧应用调用本应用。前提是本应用已安装，且播放音视频需用户授权对应媒体权限。
 
-By scenario:
+按场景说明：
 
-| Scenario | Description |
-|------|---------------------------|
-| User plays audio/video via File Manager "Open with" | When the user selects an audio/video file in File Manager and chooses "Open with → Player", File Manager launches this app's MainAbility via Want carrying the file URI; Player parses the URI, enters the corresponding playback page, and starts playing |
-| Control center playback control | While Player is playing, the user pulls down the control center from the status bar; Player has registered a media session with the system via AVSession beforehand, and the control center reads that session's playback info and sends play, pause, and skip commands back to this app via session callbacks |
-| Lock screen card playback control | While Player is playing, the user locks the screen; the lock screen app also reads this app's session info via AVSession, showing playback buttons, and the user's actions are passed back to this app via session callbacks for execution |
-| Background audio playback | After the user plays audio and switches to another app, this app continues outputting audio in the background using a background keep-alive permission; it also continuously reports playback state via AVSession, and the notification bar shows a playback notification that the user can tap to return to the playback page |
+| 场景 | 说明                                                                                               |
+|------|--------------------------------------------------------------------------------------------------|
+| 用户在文件管理器用「打开方式」播放音视频 | 用户在文件管理器选中音视频文件后选择「打开方式 → 播放器」时，文件管理器通过 Want 携带文件 URI 拉起本应用 MainAbility，播放器解析 URI 后进入对应播放页并开始播放。 |
+| 播控中心控制播放 | 播放器正在播放时，用户从状态栏下拉播控中心；播放器事先通过 AVSession 向系统注册了媒体会话，播控中心读取该会话的播放信息，并通过会话回调向本应用下发播放、暂停、切歌等命令。      |
+| 锁屏卡片控制播放 | 播放器正在播放时用户锁屏；锁屏应用同样通过 AVSession 读取本应用的会话信息，在锁屏界面展示封面与播控按钮，用户的操作经会话回调传回本应用执行。                     |
+| 后台音频播放 | 用户播放音频后将播放器切到后台，播放器可继续在后台输出音频；同时通过 AVSession 持续上报播放状态，通知栏展示播放通知，用户点击通知可回到播放页。                    |
 
-## Build
+## 编译构建
 
-This project is a multi-module HAR + HAP application project built with Hvigor, producing the `com.ohos.players` system application package.
+本工程为多模块 HAR + HAP 应用工程，使用 Hvigor 构建，产物为 `com.ohos.players` 系统应用包。
 
-### Environment Requirements
-- OpenHarmony SDK: compileSdkVersion 26, compatibleSdkVersion 23
-- DevEco Studio or command-line Hvigor toolchain
-- System signing certificate (see `signature/`)
+### 环境要求
+- OpenHarmony SDK（本工程compileSdkVersion为"26.0.0"，compatibleSdkVersion和targetVersion为23）
+- DevEco Studio 或命令行 Hvigor 工具链
+- 系统签名证书（见 `signature/`）
 
-### Build Commands
+### 编译命令
 
-Run in the project root directory:
+在工程根目录执行：
 
 ```bash
-# Open the project in DevEco Studio and run Build, or use the Hvigor CLI
+# 使用 DevEco Studio 打开工程后执行 Build，或使用 hvigor 命令行
 hvigorw assembleHap
 ```
 
-## Player Development
+## 播放器开发
 
-Player is developed using **ArkTS**, with the UI built on the ArkUI Stage model. The application hosts the main interface through `MainAbility`, completes media browsing and playback through `feature/media` / `feature/player`, and maintains data, scanning, and playback engine capabilities through `common`. Reference: [ArkUI Development Overview](https://gitcode.com/openharmony/docs/blob/master/en/application-dev/ui/arkts-ui-development-overview.md)
+播放器采用 **ArkTS** 语言开发，UI 基于 ArkUI Stage 模型。应用通过 `MainAbility` 承载主界面，通过 `feature/media` / `feature/player` 完成媒体浏览与播放业务，并通过 `common` 保持数据、扫描与播放引擎能力。开发可参考：[ArkUI 开发概述](https://gitcode.com/openharmony/docs/blob/master/zh-cn/application-dev/ui/arkts-ui-development-overview.md)
 
-### Development Based on Existing Modules
+### 基于已有模块的开发
 
-Applicable scenarios: customizing existing capabilities, such as adjusting scan strategies, extending playback page interactions, modifying playlist sorting, or optimizing search experience.
+适用场景：对已有能力做功能定制，例如调整扫描策略、扩展播放页交互、修改歌单排序、优化搜索体验等。
 
-Identify the change target: locate by business boundary in `entry` (entry & home), `feature/media` (media list), `feature/player` (playback), `feature/playlist` (playlists), `feature/search` (search), or `common` (common capabilities).
+明确改动点：按业务边界定位到 `entry`（入口与首页）、`feature/media`（媒体列表）、`feature/player`（播放）、`feature/playlist`（歌单）、`feature/search`（搜索）或 `common`（公共能力）。
 
-Some common modification scenarios are listed below:
+以下列举一些常见的修改场景：
 
-**Scenario 1: Modifying the Media List Flow**
-   - Page entry: `feature/media/src/main/ets/components/MediaAggregateView.ets`
-   - Business logic: `feature/media/src/main/ets/manager/MediaAggregateViewModel.ets`
+**场景1：修改媒体列表链路**
+   - 页面入口位于 `feature/media/src/main/ets/components/MediaAggregateView.ets`
+   - 业务逻辑位于 `feature/media/src/main/ets/manager/MediaAggregateViewModel.ets`
 
-    For example, to add custom processing after media list loading completes, add logic after the callback in `MediaAggregateViewModel.loadMediaFiles()`:
+    例如，需在媒体列表加载完成后新增自定义处理，可在`MediaAggregateViewModel.loadMediaFiles()`的回调后添加相关逻辑：
     ```typescript
-    // MediaAggregateViewModel.ets — loadMediaFiles is the media list loading entry
+    // MediaAggregateViewModel.ets — loadMediaFiles 是媒体列表加载入口
     public async loadMediaFiles(mediaType: MediaType, forceRefresh: boolean = false) {
       if (!this.isReady()) {
         return;
       }
       this.isLoading = true;
       try {
-        // Original flow: permission check → data source load → callback notification
+        // 原有流程：权限检查 → 数据源加载 → 回调通知
         await this.mediaDataSource.loadMediaFiles(mediaType, forceRefresh);
-        // [Add custom processing]
+        // 新增处理逻辑
         this.onMediaLoadComplete(mediaType);
       } finally {
         this.isLoading = false;
       }
     }
     ```
-**Scenario 2: Modifying the Playback Flow**
+**场景2：修改播放链路**
 
-   - Page entry: `feature/player/src/main/ets/pages/AudioPage.ets` (audio), `feature/player/src/main/ets/pages/VideoPlayPage.ets` (video)
-   - Playback control: `feature/player/src/main/ets/controller/AVPlayerController.ets`
-   - Session management: `feature/player/src/main/ets/session/AudioPlaybackSession.ets` / `VideoPlaybackSession.ets`
+   - 页面入口位于 `feature/player/src/main/ets/pages/AudioPage.ets`（音频）、`feature/player/src/main/ets/pages/VideoPlayPage.ets`（视频）
+   - 播放控制位于 `feature/player/src/main/ets/controller/AVPlayerController.ets`
+   - 会话管理位于 `feature/player/src/main/ets/session/AudioPlaybackSession.ets` / `VideoPlaybackSession.ets`
 
-    For example, to adjust speed control logic, extend `AVPlayerController.setSpeed()`:
+    例如，需调整倍速控制逻辑，在`AVPlayerController.setSpeed()`中扩展：
     ```typescript
-    // AVPlayerController.ets — speed control
+    // AVPlayerController.ets — 倍速控制
     setSpeed(speed: number): void {
       const playbackRate = this.resolvePlaybackRate(speed);
       HiLog.i(TAG, `setSpeed: ${speed} playbackRate=${playbackRate}`);
-      // [Modify] Add custom speed validation
+      // 新增倍速前参数校验
       if (speed > this.maxSpeed) {
         HiLog.w(TAG, `Speed ${speed} exceeds limit ${this.maxSpeed}`);
         return;
@@ -188,34 +188,34 @@ Some common modification scenarios are listed below:
       this.setPlayingSpeed(playbackRate);
     }
     ```   
-**Scenario 3: Modifying the Playlist Flow**
-   - Page entry: `feature/playlist/src/main/ets/components/PlaylistDetailView.ets`
-   - Business orchestration: `entry/src/main/ets/viewmodel/PlaylistViewModel.ets`
-   - Data persistence: `common/src/main/ets/persistence/rdb/MediaDbManager.ets`
+**场景3：修改歌单链路**
+   - 页面入口位于 `feature/playlist/src/main/ets/components/PlaylistDetailView.ets`
+   - 业务编排位于 `entry/src/main/ets/viewmodel/PlaylistViewModel.ets`
+   - 数据持久化位于 `common/src/main/ets/persistence/rdb/MediaDbManager.ets`
 
-    For example, to add name validation when creating a playlist, modify `PlaylistViewModel.submitNameDialog()`:
+    例如，若需在创建歌单时新增名称校验，修改 `PlaylistViewModel.submitNameDialog()`：
     ```typescript
-    // PlaylistViewModel.ets — submit playlist name
+    // PlaylistViewModel.ets — 提交歌单名称
     public async submitNameDialog(name: string): Promise<void> {
-      // [Modify] Add name length validation
+      // 新增名称长度校验
       if (name.length === 0 || name.length > 30) {
         HiLog.w(TAG, `Invalid playlist name length: ${name.length}`);
         return;
       }
-      // Original flow: create/rename → database write → list refresh
+      // 原有流程：创建/重命名 → 数据库写入 → 列表刷新
       await this.executeNameAction(name);
       await this.loadPlaylists();
       this.closeNameDialog();
     }
     ```
-**Scenario 4: Modifying the Search Flow**
-   - Page entry: `feature/search/src/main/ets/components/SearchOverlay.ets`
-   - Business logic: `feature/search/src/main/ets/viewmodel/SearchViewModel.ets`
-   - Search index: `common/src/main/ets/search/SearchIndexManager.ets`
+**场景4：修改搜索链路**
+   - 页面入口位于 `feature/search/src/main/ets/components/SearchOverlay.ets`
+   - 业务逻辑位于 `feature/search/src/main/ets/viewmodel/SearchViewModel.ets`
+   - 搜索索引位于 `common/src/main/ets/search/SearchIndexManager.ets`
 
-    For example, to adjust search result scoring weights, modify the scoring logic in `SearchScorer`:
+    例如，需调整搜索结果评分权重，修改`SearchScorer`中的评分逻辑：
     ```typescript
-    // SearchScorer.ets — search scoring algorithm
+    // SearchScorer.ets — 搜索评分算法
     public static scoreFile(file: FileInfo, keywords: string[]): MatchResult {
       const fileName: string = PinyinConverter.getFileNameWithoutSuffix(file.fileName || '');
       // ...
@@ -224,7 +224,7 @@ Some common modification scenarios are listed below:
       const highlightRanges: HighlightRange[] = [];
 
       for (const keyword of keywords) {
-        // [Modify] Increase file name match weight
+        // 调高文件名匹配权重
         const nameMatch = SearchMatchEngine.matchText(fileName, keyword.toLowerCase());
         if (nameMatch.matched && nameMatch.score > 0) {
           totalScore += nameMatch.score * SearchScorer.FIELD_WEIGHT_FILE_NAME / 100;
@@ -235,20 +235,20 @@ Some common modification scenarios are listed below:
       return { score: totalScore, matchedKeywords: matchedKeywords, highlightRanges: highlightRanges };
     }
     ```
-**Scenario 5: Modifying UI Components**
-   - Home page components: `entry/src/main/ets/components/`.
-   - Shared components: `common/src/main/ets/component/`.
+**场景5：修改UI组件**
+   - 首页组件位于 `entry/src/main/ets/components/`。
+   - 通用组件位于 `common/src/main/ets/component/`。
 
-    For example, to globally adjust empty state styles, modify `EmptyStateView`:
+    例如，需要全局调整空状态样式，直接修改`EmptyStateView`：
     ```typescript
-    // EmptyStateView.ets — global empty state component
+    // EmptyStateView.ets — 全局空状态组件
     @Component
     export struct EmptyStateView {
       @Prop icon: Resource = $r('app.media.ic_empty_state');
       @Prop title: ResourceStr = '';
       @Prop description: ResourceStr = '';
       @Prop fullHeight: boolean = false;
-
+    
       build() {
         Column({ space: 16 }) {
           Image(this.icon)
@@ -268,179 +268,179 @@ Some common modification scenarios are listed below:
     }
     ```   
 
-Common modification entry points:
+常用修改入口：
 
-| Target     | Path                                                                                                  |
+| 目标     | 路径                                                                                                  |
 |--------|-----------------------------------------------------------------------------------------------------|
-| App Entry   | `entry/src/main/ets/pages/MainPage.ets`                                                        |
-| Media List   | `feature/media/src/main/ets/components/MediaAggregateView.ets`                                             |
-| Media List ViewModel | `feature/media/src/main/ets/manager/MediaAggregateViewModel.ets`                                        |
-| Audio Playback Page  | `feature/player/src/main/ets/pages/AudioPage.ets`                                            |
-| Video Playback Page | `feature/player/src/main/ets/pages/VideoPlayPage.ets`, `feature/player/src/main/ets/controller/VideoPlayerController.ets` |
-| Playlist Management | `feature/playlist/src/main/ets/components/PlaylistDetailView.ets` |
-| Search Page   | `feature/search/src/main/ets/components/SearchOverlay.ets`                                    |
-| Playback Engine (queue/history/resume) | `common/src/main/ets/player/`, `common/src/main/ets/persistence/` |
-| Scanners | `common/src/main/ets/scan/` |
-| Database | `common/src/main/ets/persistence/rdb/MediaDbManager.ets` |
-| Thumbnails | `common/src/main/ets/thumbnail/ThumbnailManager.ets` |
-| UI Components   | `entry/src/main/ets/components/`, `common/src/main/ets/component/`                          |
+| 应用首页   | `entry/src/main/ets/pages/MainPage.ets`                                                        |
+| 媒体列表   | `feature/media/src/main/ets/components/MediaAggregateView.ets`                                             |
+| 媒体列表 ViewModel | `feature/media/src/main/ets/manager/MediaAggregateViewModel.ets`                                        |
+| 音频播放页  | `feature/player/src/main/ets/pages/AudioPage.ets`                                            |
+| 视频播放页 | `feature/player/src/main/ets/pages/VideoPlayPage.ets`、`feature/player/src/main/ets/controller/VideoPlayerController.ets` |
+| 歌单管理 | `feature/playlist/src/main/ets/components/PlaylistDetailView.ets` |
+| 搜索页面   | `feature/search/src/main/ets/components/SearchOverlay.ets`                                    |
+| 播放引擎（队列/历史/续播） | `common/src/main/ets/player/`、`common/src/main/ets/persistence/` |
+| 扫描器 | `common/src/main/ets/scan/` |
+| 数据库 | `common/src/main/ets/persistence/rdb/MediaDbManager.ets` |
+| 缩略图 | `common/src/main/ets/thumbnail/ThumbnailManager.ets` |
+| UI组件   | `entry/src/main/ets/components/`、`common/src/main/ets/component/`                          |
 
-### New Feature Capability Development
+### 新特性能力的开发
 
-The following uses **"Adding a playback-related business capability (illustrative: sleep-timer stop playback)"** to walk through the complete steps and their dependencies.
+下面用 **「新增一种播放相关业务能力（示意：睡眠定时关闭播放）」** 串起完整步骤，以及前后依赖关系。
 
-> **Note**: This project uses an `entry + feature + common` multi-module structure with `entry` as the product entry. New business generally lands in an existing feature; if a new product form HAP is needed, register the corresponding module in `build-profile.json5`.
+> **说明**：当前工程采用 `entry + feature + common` 多模块结构，产品入口为 `entry`。一般新业务落在已有 feature；若新增独立产品形态 HAP，可在 `build-profile.json5` 中注册对应模块。
 
-#### Target Business (example)
+#### 目标业务（示例）
 
-Users should be able to: set "stop playback after 30 minutes" on the playback page → the app automatically pauses and exits playback at the appointed time. This requires three capability chains simultaneously: **business data & playback control**, **the entry exposed to users**, and **the UI users operate**. The three steps correspond to these three chains; the typical order is **business first → then entry → then UI**.
+希望用户能：在播放页设置「定时 30 分钟后停止播放」→ 到点自动暂停并退出播放。因此需要同时具备：**业务数据与播放控制链路**、**暴露给用户的入口**、**用户可操作的 UI**。三步对应这三条能力链路，顺序一般是 **先业务 → 再入口 → 后 UI**。
 
-**Step 1: Extend business capabilities**
+**步骤1：扩展业务能力**
 
-| Problem to solve | Description |
+| 要解决的问题 | 说明 |
 |--------------|----------------|
-| Timer setting must persist | Extend a table or field in `common`'s `persistence/rdb` and expose it via `MediaDbManager`; otherwise the setting is lost after restart |
-| Must stop playback at the appointed time | Extend the timed-stop logic in `feature/player`'s controller (e.g. `AVPlayerController`), and coordinate with `PlaybackQueueManager` and AVSession state |
-| For a new Feature HAR | Split View / ViewModel by MVVM; declare the dependency on `@ohos/common` in `feature/<module>/oh-package.json5`; export public APIs in `feature/<module>/Index.ets`; and add the dependency in `entry/oh-package.json5` |
+| 定时设置要能持久化 | 在 `common` 的 `persistence/rdb` 中扩展表或字段，并经 `MediaDbManager` 暴露；否则重启后设置丢失 |
+| 到点要能停止播放 | 在 `feature/player` 的控制器（如 `AVPlayerController`）中扩展定时停止逻辑，并联动 `PlaybackQueueManager` 与 AVSession 状态 |
+| 新 Feature HAR 时 | 按 MVVM 拆分 View / ViewModel；在 `feature/<module>/oh-package.json5` 声明对 `@ohos/common` 的依赖；在 `feature/<module>/Index.ets` 导出对外 API；并在 `entry/oh-package.json5` 增加依赖声明 |
 
-Suggested development flow:
+开发流程建议：
 
-1. Implement persistence and playback control logic in the feature layer (`feature/player`, `common/persistence`).
-2. If the capability is independent enough, create a new `feature/xxx` HAR and declare dependencies in `build-profile.json5` and `entry/oh-package.json5`.
-3. Add corresponding UT / DT test cases in `entry/src/ohosTest`.
+1. 在特性层落实持久化与播放控制逻辑（`feature/player`、`common/persistence`）。
+2. 若能力足够独立，也可新建 `feature/xxx` HAR，在 `build-profile.json5` 与 `entry/oh-package.json5` 声明依赖。
+3. 在 `entry/src/ohosTest` 中补充对应 UT / DT 用例。
 
-**Step 2: Configure / Verify Ability entry (so the system can "find" this capability)**
+**步骤2：配置 / 确认 Ability 入口（让系统能「找得到」本能力）**
 
-Even if the business logic lives in a HAR, **externals still only launch Abilities declared in `entry`**. Therefore verify two key points in `entry/src/main/module.json5`:
+业务逻辑若在 HAR 内，**外部仍只会拉起 `entry` 里声明的 Ability**。因此要核对 `entry/src/main/module.json5` 两个关键点：
 
-1. **Ability coverage**: Whether the existing `MainAbility` covers the new scenario; if a new Ability / skills / Want filter is needed, declare it here, otherwise external Wants **cannot launch** it.
-2. **Permission sufficiency**: The new capability may require additional permissions.
+1. **Ability 是否覆盖**：现有 `MainAbility` 是否覆盖新场景；若需新的 Ability / skills / Want 过滤器，在此声明，否则外部 Want **无法拉起**。
+2. **权限是否足够**：新能力可能需要额外权限。
 
-**Sleep-timer example**: This capability is triggered internally from the playback page — no new Ability or skills are needed. The existing `MainAbility` already covers the playback page entry, and `ohos.permission.KEEP_BACKGROUND_RUNNING` (background timer keep-alive) and `ohos.permission.NOTIFICATION_CONTROLLER` (expiry notification) permissions are already declared. Therefore Step 2 only requires **confirming** the existing configuration — no changes needed.
+**以睡眠定时为例**：该能力由播放页内部触发，无需新增 Ability 或 skills —— 现有 `MainAbility` 已覆盖播放页入口，`ohos.permission.KEEP_BACKGROUND_RUNNING`（后台定时保活）与 `ohos.permission.NOTIFICATION_CONTROLLER`（到期通知）权限均已声明，因此步骤2仅需**确认**现有配置，无需修改。
 
-If the new capability needs to be launched directly by external apps (e.g. a desktop shortcut), add the corresponding action filter to the `skills` array in `module.json5` and add any missing permissions to `requestPermissions`:
+若新能力需要被外部应用直接拉起（如桌面快捷方式），则需在 `module.json5` 的 `skills` 数组中新增对应 action 过滤器，并在 `requestPermissions` 中补充缺失权限：
 
 ```json
-// module.json5 — add a new skills entry (illustrative)
+// module.json5 — skills 新增一项（示意）
 {
   "actions": ["ohos.want.action.sleepTimer"],
   "entities": ["entity.system.default"]
 }
 ```
 
-**Step 3: Customize the UI**
+**步骤3：定制 UI**
 
-After business data and Ability reachability are in place, modify pages to expose the capability to users, e.g.:
+在业务数据与 Ability 可达之后，再改页面把能力暴露给用户，例如：
 
-| UI | Location | Purpose |
+| UI | 位置 | 用途 |
 |----|------|------|
-| Add a "Sleep timer" entry on the playback page | `feature/player/src/main/ets/pages/AudioPage.ets` / `VideoPlayPage.ets` | Pop up timer options |
-| Timer options half-modal | New NavDestination under `entry/src/main/ets/pages/nav/` | Select a duration and write it to Step 1's persistence |
-| Playback queue panel state sync | `feature/player/src/main/ets/datasource/` | Show remaining time |
+| 播放页新增「睡眠定时」入口 | `feature/player/src/main/ets/pages/AudioPage.ets` / `VideoPlayPage.ets` | 弹出定时选项 |
+| 定时选项半模态 | `entry/src/main/ets/pages/nav/` 新增 NavDestination | 选择时长并写入步骤1 的持久化 |
+| 播放队列面板状态同步 | `feature/player/src/main/ets/datasource/` | 展示剩余时长 |
 
-To add an independent page:
+新增独立页面时：
 
-1. Add a NavDestination wrapper page under `entry/src/main/ets/pages/nav/`, placing business UI in the corresponding Feature;
-2. Register the route in `entry/src/main/ets/navigation/AppNavPageMap.ets`;
-3. Add a route name constant in `entry/src/main/ets/constants/AppNavRoutes.ets`;
-4. Use `NavRouterHelper` for unified navigation.
+1. 在 `entry/src/main/ets/pages/nav/` 下新增 NavDestination 包装页，业务 UI 放在对应 Feature；
+2. 在 `entry/src/main/ets/navigation/AppNavPageMap.ets` 中注册路由；
+3. 在 `entry/src/main/ets/constants/AppNavRoutes.ets` 中增加路由名称常量；
+4. 通过 `NavRouterHelper` 统一导航跳转。
 
-## Directory Structure
+## 目录
 ```text
 applications_players
-├─AppScope                              # Application-level config and resources
-│  ├─app.json5                          # bundleName, version, etc.
-│  └─resources/                         # Global strings / icons
-├─entry                                 # Product Layer, hosting app entry, main pages, and page navigation
+├─AppScope                              # 应用级配置与多语言资源
+│  ├─app.json5                          # bundleName、版本号等
+│  └─resources/                         # 全局字符串 / 图标等资源
+├─entry                                 # 产品层，承载应用入口、主页面与页面导航
 │  └─src/main/ets/
-│     ├─abilities/                      # Ability entry and UIAbility lifecycle management
-│     ├─pages/                          # Home page, default index page, playlist page, and other main pages
-│     ├─pages/nav/                      # NavDestination sub-pages, including audio/video/search/settings, etc.
-│     ├─navigation/                     # NavPathStack route table and page registration
-│     ├─components/                     # Home page components, including header, category tabs, floating tab bar, etc.
-│     ├─viewmodel/                      # Page-level business orchestration, including home and playlist ViewModels
-│     ├─constants/                      # Route name, view size, and other constants
-│     └─utils/                          # External Want parsing (File Manager "Open with"), unified NavPathStack navigation, playlist cover resolution
-├─feature                               # Feature Layer
-│  ├─media/                             # Media List Browsing
+│     ├─abilities/                      # Ability 入口与 UIAbility 生命周期管理
+│     ├─pages/                          # 首页、默认索引页、歌单页等主页面
+│     ├─pages/nav/                      # NavDestination 子页面，包括音频/视频/搜索/设置等
+│     ├─navigation/                     # NavPathStack 路由表与页面注册
+│     ├─components/                     # 首页组件，包括顶栏、分类 Tab、浮动 Tab 栏等
+│     ├─viewmodel/                      # 页面级业务编排，包括首页与歌单的 ViewModel
+│     ├─constants/                      # 路由名称、视图尺寸等常量
+│     └─utils/                          # 外部 Want 解析（文件管理器「打开方式」）、统一导航跳转、歌单封面解析
+├─feature                               # 特性层
+│  ├─media/                             # 媒体列表浏览
 │  │  └─src/main/ets/
-│  │     ├─components/                  # List and grid view components
-│  │     ├─manager/                     # Media list business orchestration and state management
-│  │     ├─constants/                   # Layout mode, sort rule, UI size, and other constants
-│  │     └─datasource/                  # Media list LazyForEach data source adapter
-│  ├─player/                            # Audio / Video Playback
+│  │     ├─components/                  # 列表与宫格视图组件
+│  │     ├─manager/                     # 媒体列表业务编排与状态管理
+│  │     ├─constants/                   # 布局模式、排序规则、UI 尺寸等常量
+│  │     └─datasource/                  # 媒体列表 LazyForEach 数据源适配
+│  ├─player/                            # 音视频播放
 │  │  └─src/main/ets/
-│  │     ├─pages/                       # Audio playback page, video playback page
-│  │     ├─component/                   # Video player and other player components
-│  │     ├─controller/                  # Playback control, including audio/video/common playback controllers
-│  │     ├─session/                     # AVSession media session and background playback management
-│  │     ├─viewmodel/                   # Video playback and PiP business orchestration
-│  │     ├─view/                        # Player app bar: TitleBar (back + title + action buttons) and ToolButton
-│  │     ├─datasource/                  # Playback queue half-modal LazyForEach data source with drag-reorder and current-track highlighting
-│  │     ├─utils/                       # Window mode detection (split/floating/PC), video aspect ratio & PiP size calculation, media title parsing
-│  │     └─constants/                   # Playback control, PiP, UI size, and other constants
-│  ├─playlist/                          # Playlist Management
+│  │     ├─pages/                       # 音频播放页、视频播放页
+│  │     ├─component/                   # 视频播放器等播放器组件
+│  │     ├─controller/                  # 播放控制，包括音频/视频/通用播放控制器
+│  │     ├─session/                     # AVSession 媒体会话与后台播放管理
+│  │     ├─viewmodel/                   # 视频播放与画中画业务编排
+│  │     ├─view/                        # 播放页应用栏：标题栏（返回+标题+操作按钮）与工具按钮
+│  │     ├─datasource/                  # 播放队列半模态 LazyForEach 数据源，支持拖拽排序与当前曲目高亮
+│  │     ├─utils/                       # 窗口模式检测（分屏/浮窗/PC）、视频宽高比与画中画尺寸计算、媒体标题解析
+│  │     └─constants/                   # 播放控制、画中画、UI 尺寸等常量
+│  ├─playlist/                          # 歌单管理
 │  │  └─src/main/ets/
-│  │     ├─components/                  # Playlist list, detail, edit, and other components
-│  │     ├─datasource/                  # LazyForEach data sources for playlist grid cards and playlist tracks with drag-reorder
-│  │     ├─model/                       # Playlist card data model (id, name, track count, cover URI)
-│  │     ├─constants/                   # Playlist UI constants, including card style, grid layout, name input dialog, etc.
-│  │     └─utils/                       # Playlist name input validation (strips invalid chars, enforces max length)
-│  └─search/                            # Search
+│  │     ├─components/                  # 歌单列表、详情、编辑等组件
+│  │     ├─datasource/                  # 歌单卡片与曲目 LazyForEach 数据源，支持拖拽排序
+│  │     ├─model/                       # 歌单卡片数据模型（id、名称、曲目数、封面 URI）
+│  │     ├─constants/                   # 歌单 UI 常量，包括卡片样式、网格布局、名称输入弹窗等
+│  │     └─utils/                       # 歌单名称输入校验（过滤非法字符、限制长度）
+│  └─search/                            # 搜索
 │     └─src/main/ets/
-│        ├─components/                  # Search overlay, search result item, and other components
-│        ├─viewmodel/                   # Search business orchestration
-│        ├─manager/                     # Search index coordinator: builds inverted index from media cache, provides typed search (audio/video)
-│        ├─utils/                       # Search history and quick-search keyword persistence (Preferences-based)
-│        └─constants/                   # Search UI, preference, and other constants
-├─common                                # Common Capability Layer
+│        ├─components/                  # 搜索浮层、搜索结果项等组件
+│        ├─viewmodel/                   # 搜索业务编排
+│        ├─manager/                     # 搜索索引协调器：从媒体缓存构建倒排索引，按类型检索（音频/视频）
+│        ├─utils/                       # 搜索历史与快捷搜索词持久化（基于 Preferences）
+│        └─constants/                   # 搜索 UI、偏好等常量
+├─common                                # 公共能力层
 │  └─src/main/ets/
-│     ├─bridge/                         # DI bridge interface for feature modules to access media list data
-│     ├─cache/                          # In-memory media list cache (5-min TTL, keyed by MediaType) to avoid redundant scans
-│     ├─component/                      # Shared UI components, including empty state, search bar, back button, etc.
-│     ├─constants/                      # Theme, player, supported media formats, and other constants
-│     ├─context/                        # Global context holder
-│     ├─datasource/                     # Data source abstraction and implementation
-│     ├─listener/                       # File change monitoring (media-library/user-file) and DB sync engine
-│     ├─model/                          # Data models, including audio item, video item, file info, etc.
-│     ├─notification/                   # Notification management, including progress notification, etc.
-│     ├─permission/                     # Permission management
-│     ├─persistence/                    # Persistence, including database management, playback history, display settings, etc.
-│     ├─player/                         # Playback engine, including playback queue management, AVPlayer management, etc.
-│     ├─scan/                           # Scan task scheduling, including scanner, state management, task pool, etc.
-│     ├─search/                         # Inverted index and search index management
-│     ├─storage/                        # Global LocalStorage for player page UI state (fullscreen, safe area, background flag, etc.)
-│     ├─thumbnail/                      # Multi-level thumbnail cache, including disk cache and memory cache
-│     └─utils/                          # Utilities, including logging, metadata parsing, device config, etc.
-├─hvigor                                # Build tool configuration
-├─signature                             # Signing certificate and profile
-├─figures                               # Architecture/build documentation images
-├─build-profile.json5                   # Project-level configuration
+│     ├─bridge/                         # 依赖注入桥接接口，供特性层访问媒体列表数据
+│     ├─cache/                          # 媒体列表内存缓存（5分钟TTL，按媒体类型分区），避免重复扫描
+│     ├─component/                      # 通用 UI 组件，包括空状态、搜索栏、返回按钮等
+│     ├─constants/                      # 主题、播放器、支持的媒体格式等常量
+│     ├─context/                        # 全局上下文持有者
+│     ├─datasource/                     # 数据源抽象与实现
+│     ├─listener/                       # 文件变更监听（媒体库/用户文件）与数据库同步引擎
+│     ├─model/                          # 数据模型，包括音频项、视频项、文件信息等
+│     ├─notification/                   # 通知管理，包括进度通知等
+│     ├─permission/                     # 权限管理
+│     ├─persistence/                    # 持久化，包括数据库管理、播放历史、显示设置等
+│     ├─player/                         # 播放引擎，包括播放队列管理、AVPlayer 管理等
+│     ├─scan/                           # 扫描任务调度，包括扫描器、状态管理、任务池等
+│     ├─search/                         # 倒排索引与搜索索引管理
+│     ├─storage/                        # 全局 LocalStorage，存储播放页 UI 状态（全屏、安全区、后台标记等）
+│     ├─thumbnail/                      # 缩略图多级缓存，包括磁盘缓存与内存缓存
+│     └─utils/                          # 通用工具，包括日志、元数据解析、设备配置等
+├─hvigor                                # 构建工具配置
+├─signature                             # 签名证书与 profile
+├─docs/figures/                         # 架构/构建文档图片
+├─build-profile.json5                   # 工程级配置
 ├─oh-package.json5
-├─README.md                             # English documentation
-└─README_zh.md                          # Chinese documentation
+├─README.md                             # 中文说明文档
+└─README_en.md                          # 英文说明文档
 ```
 
-## Constraints
-- **Language**: ArkTS
-- **Runtime**: System pre-installed application (`com.ohos.players`), dependent on media playback, file access, and other system capabilities
-- **Device Types**: Phone, Tablet (see `entry/src/main/module.json5`)
-- **Form Adaptation**: Landscape/portrait, PiP, and split-screen modes change page layout; multi-form validation is required when modifying UI
-- **Permissions**: The main permissions required by the Player are as follows (see `entry/src/main/module.json5`)
+## 约束
+- **语言版本**：ArkTS
+- **运行形态**：系统预置应用（`com.ohos.players`），依赖媒体播放、文件访问等系统能力
+- **设备类型**：手机、平板（见 `entry/src/main/module.json5`）
+- **形态适配**：横竖屏、PiP、分屏等会改变页面布局，修改 UI 时需覆盖多形态验证
+- **权限**：播放器所需的主要权限如下（见 `entry/src/main/module.json5`）
 
-  | Permission | Authorization | Scenario |
+  | 权限 | 授权方式 | 使用场景 |
   |------|---------|------|
-  | ohos.permission.READ_AUDIO | User grant | Read audio file metadata and content for media list scanning and playback |
-  | ohos.permission.WRITE_AUDIO | User grant | Create/manage audio files |
-  | ohos.permission.READ_IMAGEVIDEO | User grant | Read video file metadata and content |
-  | ohos.permission.WRITE_IMAGEVIDEO | User grant | Create/manage video files |
-  | ohos.permission.KEEP_BACKGROUND_RUNNING | System grant | Background audio playback and media scanning task keep-alive, preventing the process from being suspended |
-  | ohos.permission.NOTIFICATION_CONTROLLER | System grant | Playback notification and scan progress notification for control center and lock screen card display |
+  | ohos.permission.READ_AUDIO | 用户授权 | 读取音频文件元数据与内容，供媒体列表扫描与播放 |
+  | ohos.permission.WRITE_AUDIO | 用户授权 | 创建/管理音频文件 |
+  | ohos.permission.READ_IMAGEVIDEO | 用户授权 | 读取视频文件元数据与内容 |
+  | ohos.permission.WRITE_IMAGEVIDEO | 用户授权 | 创建/管理视频文件 |
+  | ohos.permission.KEEP_BACKGROUND_RUNNING | 系统授权 | 后台音频播放与媒体扫描任务保活，避免进程被挂起 |
+  | ohos.permission.NOTIFICATION_CONTROLLER | 系统授权 | 播放通知与扫描进度通知，供播控中心与锁屏卡片展示 |
 
-- **Supported Media Formats**: Audio (m4a, aac, mp3, ogg, wav, amr), Video (mp4, mkv, ts)
-- **Unsupported Features**: Distributed/cross-device playback, lyrics import and display, online streaming playback
+- **支持的媒体格式**：音频（m4a、aac、mp3、ogg、wav、amr）、视频（mp4、mkv、ts）
+- **不支持的功能**：分布式/跨设备播放、歌词导入与显示、在线流媒体播放
 
 
-## Contributing
+## 参与贡献
 
-Contributions of code, documentation, and more are welcome. For the specific contribution process and methods, please refer to [Contributing](https://gitcode.com/openharmony/docs/blob/master/en/contribute/contributing.md).
+欢迎广大开发者贡献代码、文档等，具体的贡献流程和方式请参见[参与贡献](https://gitcode.com/openharmony/docs/blob/master/zh-cn/contribute/%E5%8F%82%E4%B8%8E%E8%B4%A1%E7%8C%AE.md)。

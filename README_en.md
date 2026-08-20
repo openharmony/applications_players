@@ -146,127 +146,127 @@ Some common modification scenarios are listed below:
    - Page entry: `feature/media/src/main/ets/components/MediaAggregateView.ets`
    - Business logic: `feature/media/src/main/ets/manager/MediaAggregateViewModel.ets`
 
-    For example, to add custom processing after media list loading completes, add logic after the callback in `MediaAggregateViewModel.loadMediaFiles()`:
-    ```typescript
-    // MediaAggregateViewModel.ets — loadMediaFiles is the media list loading entry
-    public async loadMediaFiles(mediaType: MediaType, forceRefresh: boolean = false) {
-      if (!this.isReady()) {
-        return;
-      }
-      this.isLoading = true;
-      try {
-        // Original flow: permission check → data source load → callback notification
-        await this.mediaDataSource.loadMediaFiles(mediaType, forceRefresh);
-        // [Add custom processing]
-        this.onMediaLoadComplete(mediaType);
-      } finally {
-        this.isLoading = false;
-      }
-    }
-    ```
+For example, to add custom processing after media list loading completes, add logic after the callback in `MediaAggregateViewModel.loadMediaFiles()`:
+```typescript
+// MediaAggregateViewModel.ets — loadMediaFiles is the media list loading entry
+public async loadMediaFiles(mediaType: MediaType, forceRefresh: boolean = false) {
+  if (!this.isReady()) {
+    return;
+  }
+  this.isLoading = true;
+  try {
+    // Original flow: permission check → data source load → callback notification
+    await this.mediaDataSource.loadMediaFiles(mediaType, forceRefresh);
+    // [Add custom processing]
+    this.onMediaLoadComplete(mediaType);
+  } finally {
+    this.isLoading = false;
+  }
+}
+```
 **Scenario 2: Modifying the Playback Flow**
 
    - Page entry: `feature/player/src/main/ets/pages/AudioPage.ets` (audio), `feature/player/src/main/ets/pages/VideoPlayPage.ets` (video)
    - Playback control: `feature/player/src/main/ets/controller/AVPlayerController.ets`
    - Session management: `feature/player/src/main/ets/session/AudioPlaybackSession.ets` / `VideoPlaybackSession.ets`
 
-    For example, to adjust speed control logic, extend `AVPlayerController.setSpeed()`:
-    ```typescript
-    // AVPlayerController.ets — speed control
-    setSpeed(speed: number): void {
-      const playbackRate = this.resolvePlaybackRate(speed);
-      HiLog.i(TAG, `setSpeed: ${speed} playbackRate=${playbackRate}`);
-      // [Modify] Add custom speed validation
-      if (speed > this.maxSpeed) {
-        HiLog.w(TAG, `Speed ${speed} exceeds limit ${this.maxSpeed}`);
-        return;
-      }
-      this.speed = speed;
-      if (this.avPlayer !== null && AVPLAYER_PREPARED_STATE.has(this.avPlayer.state as string)) {
-        this.avPlayer.setPlaybackRate(playbackRate);
-      }
-      this.setPlayingSpeed(playbackRate);
-    }
-    ```   
+For example, to adjust speed control logic, extend `AVPlayerController.setSpeed()`:
+```typescript
+// AVPlayerController.ets — speed control
+setSpeed(speed: number): void {
+  const playbackRate = this.resolvePlaybackRate(speed);
+  HiLog.i(TAG, `setSpeed: ${speed} playbackRate=${playbackRate}`);
+  // [Modify] Add custom speed validation
+  if (speed > this.maxSpeed) {
+    HiLog.w(TAG, `Speed ${speed} exceeds limit ${this.maxSpeed}`);
+    return;
+  }
+  this.speed = speed;
+  if (this.avPlayer !== null && AVPLAYER_PREPARED_STATE.has(this.avPlayer.state as string)) {
+    this.avPlayer.setPlaybackRate(playbackRate);
+  }
+  this.setPlayingSpeed(playbackRate);
+}
+```
 **Scenario 3: Modifying the Playlist Flow**
    - Page entry: `feature/playlist/src/main/ets/components/PlaylistDetailView.ets`
    - Business orchestration: `entry/src/main/ets/viewmodel/PlaylistViewModel.ets`
    - Data persistence: `common/src/main/ets/persistence/rdb/MediaDbManager.ets`
 
-    For example, to add name validation when creating a playlist, modify `PlaylistViewModel.submitNameDialog()`:
-    ```typescript
-    // PlaylistViewModel.ets — submit playlist name
-    public async submitNameDialog(name: string): Promise<void> {
-      // [Modify] Add name length validation
-      if (name.length === 0 || name.length > 30) {
-        HiLog.w(TAG, `Invalid playlist name length: ${name.length}`);
-        return;
-      }
-      // Original flow: create/rename → database write → list refresh
-      await this.executeNameAction(name);
-      await this.loadPlaylists();
-      this.closeNameDialog();
-    }
-    ```
+For example, to add name validation when creating a playlist, modify `PlaylistViewModel.submitNameDialog()`:
+```typescript
+// PlaylistViewModel.ets — submit playlist name
+public async submitNameDialog(name: string): Promise<void> {
+  // [Modify] Add name length validation
+  if (name.length === 0 || name.length > 30) {
+    HiLog.w(TAG, `Invalid playlist name length: ${name.length}`);
+    return;
+  }
+  // Original flow: create/rename → database write → list refresh
+  await this.executeNameAction(name);
+  await this.loadPlaylists();
+  this.closeNameDialog();
+}
+```
 **Scenario 4: Modifying the Search Flow**
    - Page entry: `feature/search/src/main/ets/components/SearchOverlay.ets`
    - Business logic: `feature/search/src/main/ets/viewmodel/SearchViewModel.ets`
    - Search index: `common/src/main/ets/search/SearchIndexManager.ets`
 
-    For example, to adjust search result scoring weights, modify the scoring logic in `SearchScorer`:
-    ```typescript
-    // SearchScorer.ets — search scoring algorithm
-    public static scoreFile(file: FileInfo, keywords: string[]): MatchResult {
-      const fileName: string = PinyinConverter.getFileNameWithoutSuffix(file.fileName || '');
-      // ...
-      let totalScore: number = 0;
-      const matchedKeywords: string[] = [];
-      const highlightRanges: HighlightRange[] = [];
+For example, to adjust search result scoring weights, modify the scoring logic in `SearchScorer`:
+```typescript
+// SearchScorer.ets — search scoring algorithm
+public static scoreFile(file: FileInfo, keywords: string[]): MatchResult {
+  const fileName: string = PinyinConverter.getFileNameWithoutSuffix(file.fileName || '');
+  // ...
+  let totalScore: number = 0;
+  const matchedKeywords: string[] = [];
+  const highlightRanges: HighlightRange[] = [];
 
-      for (const keyword of keywords) {
-        // [Modify] Increase file name match weight
-        const nameMatch = SearchMatchEngine.matchText(fileName, keyword.toLowerCase());
-        if (nameMatch.matched && nameMatch.score > 0) {
-          totalScore += nameMatch.score * SearchScorer.FIELD_WEIGHT_FILE_NAME / 100;
-          matchedKeywords.push(keyword);
-          // ...
-        }
-      }
-      return { score: totalScore, matchedKeywords: matchedKeywords, highlightRanges: highlightRanges };
+  for (const keyword of keywords) {
+    // [Modify] Increase file name match weight
+    const nameMatch = SearchMatchEngine.matchText(fileName, keyword.toLowerCase());
+    if (nameMatch.matched && nameMatch.score > 0) {
+      totalScore += nameMatch.score * SearchScorer.FIELD_WEIGHT_FILE_NAME / 100;
+      matchedKeywords.push(keyword);
+      // ...
     }
-    ```
+  }
+  return { score: totalScore, matchedKeywords: matchedKeywords, highlightRanges: highlightRanges };
+}
+```
 **Scenario 5: Modifying UI Components**
    - Home page components: `entry/src/main/ets/components/`.
    - Shared components: `common/src/main/ets/component/`.
 
-    For example, to globally adjust empty state styles, modify `EmptyStateView`:
-    ```typescript
-    // EmptyStateView.ets — global empty state component
-    @Component
-    export struct EmptyStateView {
-      @Prop icon: Resource = $r('app.media.ic_empty_state');
-      @Prop title: ResourceStr = '';
-      @Prop description: ResourceStr = '';
-      @Prop fullHeight: boolean = false;
+For example, to globally adjust empty state styles, modify `EmptyStateView`:
+```typescript
+// EmptyStateView.ets — global empty state component
+@Component
+export struct EmptyStateView {
+  @Prop icon: Resource = $r('app.media.ic_empty_state');
+  @Prop title: ResourceStr = '';
+  @Prop description: ResourceStr = '';
+  @Prop fullHeight: boolean = false;
 
-      build() {
-        Column({ space: 16 }) {
-          Image(this.icon)
-            .width(200)
-            .height(200)
-          Text(this.title)
-            .fontSize(16)
-            .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-          Text(this.description)
-            .fontSize(14)
-            .fontColor($r('sys.color.ohos_id_color_text_tertiary'))
-        }
-        .width('100%')
-        .height(this.fullHeight ? '100%' : 300)
-        .justifyContent(FlexAlign.Center)
-      }
+  build() {
+    Column({ space: 16 }) {
+      Image(this.icon)
+        .width(200)
+        .height(200)
+      Text(this.title)
+        .fontSize(16)
+        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+      Text(this.description)
+        .fontSize(14)
+        .fontColor($r('sys.color.ohos_id_color_text_tertiary'))
     }
-    ```   
+    .width('100%')
+    .height(this.fullHeight ? '100%' : 300)
+    .justifyContent(FlexAlign.Center)
+  }
+}
+```
 
 Common modification entry points:
 
@@ -289,7 +289,9 @@ Common modification entry points:
 
 The following uses **"Adding a playback-related business capability (illustrative: sleep-timer stop playback)"** to walk through the complete steps and their dependencies.
 
-> **Note**: This project uses an `entry + feature + common` multi-module structure with `entry` as the product entry. New business generally lands in an existing feature; if a new product form HAP is needed, register the corresponding module in `build-profile.json5`.
+> **Note**:
+>
+> This project uses an `entry + feature + common` multi-module structure with `entry` as the product entry. New business generally lands in an existing feature; if a new product form HAP is needed, register the corresponding module in `build-profile.json5`.
 
 #### Target Business (example)
 

@@ -146,127 +146,127 @@ hvigorw assembleHap
    - 页面入口位于 `feature/media/src/main/ets/components/MediaAggregateView.ets`
    - 业务逻辑位于 `feature/media/src/main/ets/manager/MediaAggregateViewModel.ets`
 
-    例如，需在媒体列表加载完成后新增自定义处理，可在`MediaAggregateViewModel.loadMediaFiles()`的回调后添加相关逻辑：
-    ```typescript
-    // MediaAggregateViewModel.ets — loadMediaFiles 是媒体列表加载入口
-    public async loadMediaFiles(mediaType: MediaType, forceRefresh: boolean = false) {
-      if (!this.isReady()) {
-        return;
-      }
-      this.isLoading = true;
-      try {
-        // 原有流程：权限检查 → 数据源加载 → 回调通知
-        await this.mediaDataSource.loadMediaFiles(mediaType, forceRefresh);
-        // 新增处理逻辑
-        this.onMediaLoadComplete(mediaType);
-      } finally {
-        this.isLoading = false;
-      }
-    }
-    ```
+例如，需在媒体列表加载完成后新增自定义处理，可在`MediaAggregateViewModel.loadMediaFiles()`的回调后添加相关逻辑：
+```typescript
+// MediaAggregateViewModel.ets — loadMediaFiles 是媒体列表加载入口
+public async loadMediaFiles(mediaType: MediaType, forceRefresh: boolean = false) {
+  if (!this.isReady()) {
+    return;
+  }
+  this.isLoading = true;
+  try {
+    // 原有流程：权限检查 → 数据源加载 → 回调通知
+    await this.mediaDataSource.loadMediaFiles(mediaType, forceRefresh);
+    // 新增处理逻辑
+    this.onMediaLoadComplete(mediaType);
+  } finally {
+    this.isLoading = false;
+  }
+}
+```
 **场景2：修改播放链路**
 
    - 页面入口位于 `feature/player/src/main/ets/pages/AudioPage.ets`（音频）、`feature/player/src/main/ets/pages/VideoPlayPage.ets`（视频）
    - 播放控制位于 `feature/player/src/main/ets/controller/AVPlayerController.ets`
    - 会话管理位于 `feature/player/src/main/ets/session/AudioPlaybackSession.ets` / `VideoPlaybackSession.ets`
 
-    例如，需调整倍速控制逻辑，在`AVPlayerController.setSpeed()`中扩展：
-    ```typescript
-    // AVPlayerController.ets — 倍速控制
-    setSpeed(speed: number): void {
-      const playbackRate = this.resolvePlaybackRate(speed);
-      HiLog.i(TAG, `setSpeed: ${speed} playbackRate=${playbackRate}`);
-      // 新增倍速前参数校验
-      if (speed > this.maxSpeed) {
-        HiLog.w(TAG, `Speed ${speed} exceeds limit ${this.maxSpeed}`);
-        return;
-      }
-      this.speed = speed;
-      if (this.avPlayer !== null && AVPLAYER_PREPARED_STATE.has(this.avPlayer.state as string)) {
-        this.avPlayer.setPlaybackRate(playbackRate);
-      }
-      this.setPlayingSpeed(playbackRate);
-    }
-    ```   
+例如，需调整倍速控制逻辑，在`AVPlayerController.setSpeed()`中扩展：
+```typescript
+// AVPlayerController.ets — 倍速控制
+setSpeed(speed: number): void {
+  const playbackRate = this.resolvePlaybackRate(speed);
+  HiLog.i(TAG, `setSpeed: ${speed} playbackRate=${playbackRate}`);
+  // 新增倍速前参数校验
+  if (speed > this.maxSpeed) {
+    HiLog.w(TAG, `Speed ${speed} exceeds limit ${this.maxSpeed}`);
+    return;
+  }
+  this.speed = speed;
+  if (this.avPlayer !== null && AVPLAYER_PREPARED_STATE.has(this.avPlayer.state as string)) {
+    this.avPlayer.setPlaybackRate(playbackRate);
+  }
+  this.setPlayingSpeed(playbackRate);
+}
+```
 **场景3：修改歌单链路**
    - 页面入口位于 `feature/playlist/src/main/ets/components/PlaylistDetailView.ets`
    - 业务编排位于 `entry/src/main/ets/viewmodel/PlaylistViewModel.ets`
    - 数据持久化位于 `common/src/main/ets/persistence/rdb/MediaDbManager.ets`
 
-    例如，若需在创建歌单时新增名称校验，修改 `PlaylistViewModel.submitNameDialog()`：
-    ```typescript
-    // PlaylistViewModel.ets — 提交歌单名称
-    public async submitNameDialog(name: string): Promise<void> {
-      // 新增名称长度校验
-      if (name.length === 0 || name.length > 30) {
-        HiLog.w(TAG, `Invalid playlist name length: ${name.length}`);
-        return;
-      }
-      // 原有流程：创建/重命名 → 数据库写入 → 列表刷新
-      await this.executeNameAction(name);
-      await this.loadPlaylists();
-      this.closeNameDialog();
-    }
-    ```
+例如，若需在创建歌单时新增名称校验，修改 `PlaylistViewModel.submitNameDialog()`：
+```typescript
+// PlaylistViewModel.ets — 提交歌单名称
+public async submitNameDialog(name: string): Promise<void> {
+  // 新增名称长度校验
+  if (name.length === 0 || name.length > 30) {
+    HiLog.w(TAG, `Invalid playlist name length: ${name.length}`);
+    return;
+  }
+  // 原有流程：创建/重命名 → 数据库写入 → 列表刷新
+  await this.executeNameAction(name);
+  await this.loadPlaylists();
+  this.closeNameDialog();
+}
+```
 **场景4：修改搜索链路**
    - 页面入口位于 `feature/search/src/main/ets/components/SearchOverlay.ets`
    - 业务逻辑位于 `feature/search/src/main/ets/viewmodel/SearchViewModel.ets`
    - 搜索索引位于 `common/src/main/ets/search/SearchIndexManager.ets`
 
-    例如，需调整搜索结果评分权重，修改`SearchScorer`中的评分逻辑：
-    ```typescript
-    // SearchScorer.ets — 搜索评分算法
-    public static scoreFile(file: FileInfo, keywords: string[]): MatchResult {
-      const fileName: string = PinyinConverter.getFileNameWithoutSuffix(file.fileName || '');
-      // ...
-      let totalScore: number = 0;
-      const matchedKeywords: string[] = [];
-      const highlightRanges: HighlightRange[] = [];
+例如，需调整搜索结果评分权重，修改`SearchScorer`中的评分逻辑：
+```typescript
+// SearchScorer.ets — 搜索评分算法
+public static scoreFile(file: FileInfo, keywords: string[]): MatchResult {
+  const fileName: string = PinyinConverter.getFileNameWithoutSuffix(file.fileName || '');
+  // ...
+  let totalScore: number = 0;
+  const matchedKeywords: string[] = [];
+  const highlightRanges: HighlightRange[] = [];
 
-      for (const keyword of keywords) {
-        // 调高文件名匹配权重
-        const nameMatch = SearchMatchEngine.matchText(fileName, keyword.toLowerCase());
-        if (nameMatch.matched && nameMatch.score > 0) {
-          totalScore += nameMatch.score * SearchScorer.FIELD_WEIGHT_FILE_NAME / 100;
-          matchedKeywords.push(keyword);
-          // ...
-        }
-      }
-      return { score: totalScore, matchedKeywords: matchedKeywords, highlightRanges: highlightRanges };
+  for (const keyword of keywords) {
+    // 调高文件名匹配权重
+    const nameMatch = SearchMatchEngine.matchText(fileName, keyword.toLowerCase());
+    if (nameMatch.matched && nameMatch.score > 0) {
+      totalScore += nameMatch.score * SearchScorer.FIELD_WEIGHT_FILE_NAME / 100;
+      matchedKeywords.push(keyword);
+      // ...
     }
-    ```
+  }
+  return { score: totalScore, matchedKeywords: matchedKeywords, highlightRanges: highlightRanges };
+}
+```
 **场景5：修改UI组件**
    - 首页组件位于 `entry/src/main/ets/components/`。
    - 通用组件位于 `common/src/main/ets/component/`。
 
-    例如，需要全局调整空状态样式，直接修改`EmptyStateView`：
-    ```typescript
-    // EmptyStateView.ets — 全局空状态组件
-    @Component
-    export struct EmptyStateView {
-      @Prop icon: Resource = $r('app.media.ic_empty_state');
-      @Prop title: ResourceStr = '';
-      @Prop description: ResourceStr = '';
-      @Prop fullHeight: boolean = false;
-    
-      build() {
-        Column({ space: 16 }) {
-          Image(this.icon)
-            .width(200)
-            .height(200)
-          Text(this.title)
-            .fontSize(16)
-            .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-          Text(this.description)
-            .fontSize(14)
-            .fontColor($r('sys.color.ohos_id_color_text_tertiary'))
-        }
-        .width('100%')
-        .height(this.fullHeight ? '100%' : 300)
-        .justifyContent(FlexAlign.Center)
-      }
+例如，需要全局调整空状态样式，直接修改`EmptyStateView`：
+```typescript
+// EmptyStateView.ets — 全局空状态组件
+@Component
+export struct EmptyStateView {
+  @Prop icon: Resource = $r('app.media.ic_empty_state');
+  @Prop title: ResourceStr = '';
+  @Prop description: ResourceStr = '';
+  @Prop fullHeight: boolean = false;
+
+  build() {
+    Column({ space: 16 }) {
+      Image(this.icon)
+        .width(200)
+        .height(200)
+      Text(this.title)
+        .fontSize(16)
+        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+      Text(this.description)
+        .fontSize(14)
+        .fontColor($r('sys.color.ohos_id_color_text_tertiary'))
     }
-    ```   
+    .width('100%')
+    .height(this.fullHeight ? '100%' : 300)
+    .justifyContent(FlexAlign.Center)
+  }
+}
+```
 
 常用修改入口：
 
@@ -289,7 +289,9 @@ hvigorw assembleHap
 
 下面用 **「新增一种播放相关业务能力（示意：睡眠定时关闭播放）」** 串起完整步骤，以及前后依赖关系。
 
-> **说明**：当前工程采用 `entry + feature + common` 多模块结构，产品入口为 `entry`。一般新业务落在已有 feature；若新增独立产品形态 HAP，可在 `build-profile.json5` 中注册对应模块。
+> **说明**：
+> 
+> 当前工程采用 `entry + feature + common` 多模块结构，产品入口为 `entry`。一般新业务落在已有 feature；若新增独立产品形态 HAP，可在 `build-profile.json5` 中注册对应模块。
 
 #### 目标业务（示例）
 

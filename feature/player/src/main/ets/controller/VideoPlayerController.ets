@@ -223,16 +223,8 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
     return this.playingUri;
   }
 
-  /**
-   * 重建 AVPlayer 后重绑 surface，避免画面无输出
-   */
-  protected async recreateAvPlayer(): Promise<boolean> {
-    const ok = await super.recreateAvPlayer();
-    if (ok && this.avPlayer !== null && this.surfaceID.length > 0) {
-      this.avPlayer.surfaceId = this.surfaceID;
-      HiLog.i(TAG, `recreateAvPlayer rebound surfaceId=${this.surfaceID}`);
-    }
-    return ok;
+  protected hasPendingTrackSwitch(): boolean {
+    return this.pendingSwitchFileInfo !== null;
   }
 
   /**
@@ -742,6 +734,8 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
     this.pendingUri = '';
     this.pendingSwitchFileInfo = null;
     this.switchInFlight = false;
+    this.trackSwitchBusy = false;
+    this.markTrackSwitchSettled();
     VideoPlaybackSession.getInstance().unbindController(this);
     this.stopContinuousTask();
     await this.clearAvSession();
@@ -799,6 +793,11 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
     if (this.avPlayer === null) {
       return;
     }
+    const state = this.avPlayer.state;
+    if (state !== 'prepared' && state !== 'playing' && state !== 'paused' && state !== 'completed') {
+      HiLog.w(TAG, `applyVideoScaleType skipped state=${state}`);
+      return;
+    }
     try {
       this.avPlayer.videoScaleType = media.VideoScaleType.VIDEO_SCALE_TYPE_FIT_CROP;
       HiLog.i(TAG, `applyVideoScaleType scaleType=${media.VideoScaleType.VIDEO_SCALE_TYPE_FIT_CROP}`);
@@ -806,6 +805,19 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
       const bizError = error as BusinessError;
       HiLog.e(TAG, `applyVideoScaleType failed code=${bizError.code} message=${bizError.message}`);
     }
+  }
+
+  /** surfaceId 只能在 initialized 写入，其它状态会 5400102 */
+  private trySetSurfaceId(surfaceId: string): boolean {
+    if (this.avPlayer === null || surfaceId.length === 0) {
+      return false;
+    }
+    if (this.avPlayer.state !== 'initialized') {
+      HiLog.w(TAG, `trySetSurfaceId skipped state=${this.avPlayer.state}`);
+      return false;
+    }
+    this.avPlayer.surfaceId = surfaceId;
+    return true;
   }
 
   /**
@@ -1075,6 +1087,7 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
     this.pendingUri = fileInfo.uri;
     this.fileInfo = fileInfo;
     this.setFileInfo(fileInfo, false);
+    this.resetProgressUiForSwitch(fileInfo);
     this.startTime = Date.now();
     if (this.playPage !== null) {
       this.playPage.loadingStatus = LoadingStatus.LOAD_STATE_LOADING;
@@ -1092,6 +1105,7 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
       return;
     }
     this.switchInFlight = true;
+    this.markTrackSwitchBusy();
     try {
       while (this.pendingSwitchFileInfo !== null) {
         const target = this.pendingSwitchFileInfo;
@@ -1101,6 +1115,7 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
         this.fileInfo = target;
         void this.releaseSessionCover();
         this.setFileInfo(target, false);
+        this.resetProgressUiForSwitch(target);
         HiLog.i(TAG, `runTrackSwitchLoop start gen=${generation} uri=%{private}s`, target.uri);
 
         await this.prepareForTrackSwitch();
@@ -1115,6 +1130,7 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
         }
         if (this.surfaceID.length === 0) {
           HiLog.w(TAG, 'runTrackSwitchLoop surfaceId not ready');
+          this.markTrackSwitchSettled();
           continue;
         }
         this.startTime = Date.now();
@@ -1160,13 +1176,9 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
     if (this.playPage === null) {
       return;
     }
-    // 切源单飞进行中：只更新 surface，避免与 runTrackSwitchLoop 并发 open
+    // 切源单飞进行中：只记下 surface，initialized 时再绑定，避免 idle 写 SurfaceID 触发 5400102
     if (this.switchInFlight || this.pendingSwitchFileInfo !== null) {
       this.surfaceID = surfaceId;
-      if (this.avPlayer !== null) {
-        this.avPlayer.surfaceId = surfaceId;
-        this.applyVideoScaleType();
-      }
       HiLog.i(TAG, `videoSurfaceID surface only during switch, surfaceId=${surfaceId}`);
       return;
     }
@@ -1184,7 +1196,7 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
         if (this.surfaceID !== surfaceId) {
           HiLog.i(TAG, `videoSurfaceID update surface only, state:${playerState}`);
           this.surfaceID = surfaceId;
-          this.avPlayer.surfaceId = surfaceId;
+          this.trySetSurfaceId(surfaceId);
           this.applyVideoScaleType();
           // 必须 return：否则会穿透到 openVideoSource/set url，触发 5400102 并卡住播放
           return;
@@ -1338,6 +1350,7 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
     this.fileInfo.fileSize = opened.size;
     this.fdRelease = opened.release;
     this.setFdSrc(opened.fd);
+    this.markTrackSourceBound();
     this.playingUri = fileInfo.uri;
     if (this.pendingSwitchFileInfo === null && this.pendingUri === fileInfo.uri) {
       this.pendingUri = '';
@@ -1393,10 +1406,18 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
       HiLog.e(TAG, 'avPlayer is null in toInitialized');
       return;
     }
+    if (this.avPlayer.state !== 'initialized') {
+      HiLog.w(TAG, `toInitialized skip: stale state=${this.avPlayer.state}`);
+      return;
+    }
     this.avPlayer.surfaceId = this.surfaceID;
     HiLog.i(TAG, `AVPlayer surfaceId set to: %{private}s`, this.surfaceID);
     // 必须在 prepare 前 await：否则策略未生效就开播
     await this.applyPreferredPlaybackStrategy();
+    if (this.avPlayer === null || this.avPlayer.state !== 'initialized') {
+      HiLog.w(TAG, `toInitialized skip after strategy state=${this.avPlayer?.state}`);
+      return;
+    }
     this.avPlayer.audioRendererInfo = {
       usage: audio.StreamUsage.STREAM_USAGE_MOVIE,
       rendererFlags: 0
@@ -1504,6 +1525,7 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
 
   toCompleted(): void {
     HiLog.i(TAG, 'toCompleted.');
+    this.clearSliderSeekRemap();
     if (PlaybackQueueManager.getInstance().skipToNext()) {
       return;
     }

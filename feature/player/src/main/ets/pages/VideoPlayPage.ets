@@ -647,11 +647,24 @@ export struct VideoPlayPage {
   }
 
   /**
-   * 单击视频画面：显隐控制区（标题栏 + 底部交互区）。
+   * 播完结束态从开头重播。中央播放按钮在全屏手势层下方，点击由手势层转发到这里。
+   */
+  private replayAfterCompleted(): void {
+    HiLog.i(TAG, 'replayAfterCompleted');
+    this.videoController.switchPlayOrPause();
+    this.viewModel.showControlsAndScheduleHide(systemDateTime.getTime());
+  }
+
+  /**
+   * 单击视频画面：显隐控制区。播完结束态改为重播。
    */
   private handleVideoSingleTap(): void {
     if (this.isScreenLocked) {
       this.handleLockedScreenInteraction();
+      return;
+    }
+    if (this.isMobileStop()) {
+      this.replayAfterCompleted();
       return;
     }
     HiLog.i(TAG, `handleVideoSingleTap isProgressHide=${this.isProgressHide} portrait=${this.isPortraitPanelMode()}`);
@@ -660,7 +673,7 @@ export struct VideoPlayPage {
   }
 
   /**
-   * 双击视频画面：播放 / 暂停；横屏沉浸时顺带拉起控制区并续订自动隐藏。
+   * 双击视频画面：播放 / 暂停。播完结束态同样重播。
    */
   private handleVideoDoubleTap(): void {
     if (this.isScreenLocked) {
@@ -669,6 +682,7 @@ export struct VideoPlayPage {
     }
     HiLog.i(TAG, `handleVideoDoubleTap isMobileStop=${this.isMobileStop()}`);
     if (this.isMobileStop()) {
+      this.replayAfterCompleted();
       return;
     }
     this.videoController.switchPlayOrPause();
@@ -1477,8 +1491,7 @@ export struct VideoPlayPage {
         })
         .onClick((event: ClickEvent) => {
           HiLog.i(TAG, `centerPlay clicked source=${event.source}`);
-          this.videoController.switchPlayOrPause();
-          this.viewModel.showControlsAndScheduleHide(systemDateTime.getTime());
+          this.replayAfterCompleted();
         })
         .visibility((this.showVolumeProgress || this.isScreenLocked) ? Visibility.Hidden : Visibility.Visible)
         .draggable(false)

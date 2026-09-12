@@ -38,6 +38,8 @@ export interface PublicScanResult {
 const AUDIO_SUFFIXES: string[] = SupportedMediaFormats.AUDIO_SUFFIXES.slice();
 const VIDEO_SUFFIXES: string[] = SupportedMediaFormats.VIDEO_SUFFIXES.slice();
 const MEDIA_SUFFIXES: string[] = SupportedMediaFormats.getAllSuffixes();
+/** 文管删除后的回收站路径，扫描时跳过 */
+const TRASH_PATH_MARK: string = '/.Trash';
 
 /** 内卡文件管理 FileExtensionAbility（无参 createFileAccessHelper 需 GET_BUNDLE_INFO_PRIVILEGED） */
 const FILE_ACCESS_WANTS: Want[] = [
@@ -180,6 +182,9 @@ export class PublicStorageScanner {
       // 先尝试递归扫描
       const relativeNames = await FileUtil.getSubFileNameByUriWithFs(rootUri, true);
       for (const relativeName of relativeNames) {
+        if (PublicStorageScanner.isTrashEntry(relativeName)) {
+          continue;
+        }
         if (!PublicStorageScanner.isMediaFileName(relativeName)) {
           continue;
         }
@@ -206,6 +211,9 @@ export class PublicStorageScanner {
     try {
       const children = await FileUtil.getSubFileNameByUriWithFs(dirUri, false);
       for (const child of children) {
+        if (PublicStorageScanner.isTrashEntry(child)) {
+          continue;
+        }
         const childUri = PublicStorageScanner.joinUri(dirUri, child);
         // 尝试作为文件判断
         if (PublicStorageScanner.isMediaFileName(child)) {
@@ -234,6 +242,9 @@ export class PublicStorageScanner {
     try {
       const children = await FileUtil.getSubFileNameByUriWithFs(dirUri, false);
       for (const child of children) {
+        if (PublicStorageScanner.isTrashEntry(child)) {
+          continue;
+        }
         const childUri = PublicStorageScanner.joinUri(dirUri, child);
         if (PublicStorageScanner.isMediaFileName(child)) {
           const fileInfo: FileInfo | null = PublicStorageScanner.buildFileInfoFromUri(childUri, child);
@@ -253,7 +264,14 @@ export class PublicStorageScanner {
     }
   }
 
+  private static isTrashEntry(uriOrName: string): boolean {
+    return uriOrName.indexOf(TRASH_PATH_MARK) >= 0 || uriOrName === '.Trash';
+  }
+
   private static buildFileInfoFromUri(fileUri: string, fileName: string): FileInfo | null {
+    if (PublicStorageScanner.isTrashEntry(fileUri)) {
+      return null;
+    }
     try {
       const fileInfo: FileInfo = new FileInfo();
       fileInfo.uri = fileUri;
@@ -277,7 +295,7 @@ export class PublicStorageScanner {
   }
 
   private static convertFileAccessInfo(faInfo: fileAccess.FileInfo): FileInfo | null {
-    if (!faInfo.fileName || faInfo.fileName.length === 0) {
+    if (!faInfo.fileName || faInfo.fileName.length === 0 || PublicStorageScanner.isTrashEntry(faInfo.uri)) {
       return null;
     }
 

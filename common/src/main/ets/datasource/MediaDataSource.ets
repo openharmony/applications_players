@@ -187,6 +187,7 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
     }
     data = scopedData;
     const supportedData = data.filter((item: FileInfo) =>
+      item.uri.indexOf('/.Trash') < 0 &&
       SupportedMediaFormats.isSupportedMedia(item.fileName) &&
       (item.duration > 0 || SupportedMediaFormats.isValidMediaByHeader(item.uri)));
     if (supportedData.length !== data.length) {
@@ -345,31 +346,26 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
       // 查询全部类型数据，setData 自动按 mediaType 过滤显示
       const dbData = await this.dbManager.queryMediaMetadata();
       if (dbData.length > 0) {
-        // 抑制 DB 缓存 / supplementScan / removeDeleted 多次 setData 导致闪烁
         this.suppressDataNotification = true;
         this.setData(dbData);
-        // 缓存全部类型数据，用 UNKNOWN key
         this.cacheManager.updateCache(MediaType.UNKNOWN, dbData);
-        HiLog.i(TAG, `Loaded all from database cache: ${dbData.length} files, filtered to ${MediaType[mediaType]}: ${this.filteredArray.length}`);
-
-        if (this.includePublicFiles) {
-          await this.supplementWithFilesystemScan(this.getDataArray());
-        }
-
-        // 移除源文件已被删除的条目
-        await this.removeDeletedFiles(this.getDataArray());
-
-        // 补充流程结束，清除标志并统一通知 UI 一次
         this.suppressDataNotification = false;
         this.notifyDataChanged();
+        HiLog.i(TAG, `Loaded all from database cache: ${dbData.length} files, filtered to ${MediaType[mediaType]}: ${this.filteredArray.length}`);
 
-        // 数据库有数据时触发后台异步增量扫描
-        this.triggerBackgroundIncrementalScan();
+        // 延迟到首帧后全量扫描，发现关闭期间媒体库/公共目录的增删并刷新列表
+        setTimeout(async (): Promise<void> => {
+          try {
+            await this.scanMediaFiles(MediaType.UNKNOWN);
+          } catch (error) {
+            HiLog.e(TAG, `Background scan failed: ${error}`);
+          }
+        }, 0);
       } else {
         // 数据库无数据，执行全量扫描（首次启动场景）
         HiLog.i(TAG, `No cached data in database, performing full scan (all types)`);
         await this.scanMediaFiles(MediaType.UNKNOWN);
-}
+      }
     } catch (error) {
       HiLog.e(TAG, `Failed to load media files: ${error}`);
       throw new Error(`加载媒体文件失败: ${error}`);
@@ -806,6 +802,10 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
     }
     const deletedUris: string[] = [];
     for (const file of files) {
+      if (file.uri.indexOf('/.Trash') >= 0) {
+        deletedUris.push(file.uri);
+        continue;
+      }
       try {
         let exists = false;
         if (file.uri.startsWith('file://media/')) {
@@ -848,10 +848,36 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
   }
 
   /**
+   * 全量扫描会用新结果替换内存列表，已从列表消失的缓存 URI 不会再走 removeDeletedFiles。
+   * 把这些 URI 软删写回 DB，避免下次冷启动仍按 is_valid=1 把已删项刷出来。
+   */
+  private async persistStaleCacheRecords(previousUris: string[]): Promise<void> {
+    if (previousUris.length === 0) {
+      return;
+    }
+    const remainUriSet = new Set<string>();
+    const remainFiles = this.getDataArray();
+    for (let i = 0; i < remainFiles.length; i++) {
+      remainUriSet.add(remainFiles[i].uri);
+    }
+    const staleUris: string[] = [];
+    for (let i = 0; i < previousUris.length; i++) {
+      if (!remainUriSet.has(previousUris[i])) {
+        staleUris.push(previousUris[i]);
+      }
+    }
+    if (staleUris.length === 0) {
+      return;
+    }
+    await this.dbManager.batchMarkAsInvalid(staleUris);
+    HiLog.i(TAG, `Persisted scan removal: ${staleUris.length} stale db records`);
+  }
+
+  /**
    * 提交 ScanTaskPool 扫描任务并阻塞至分块处理完毕。
    * 扫描期间 suppressDataNotification=true，ScanTaskPool / PublicStorageScanner /
    * removeDeletedFiles 各自的 setData 仅更新内部数据，不触发 UI 通知；
-   * 全部完成后清除标志并统一 notifyDataChanged() 一次，避免列表闪烁。
+   * 扫描与 duration 完成后先 notifyDataChanged，缩略图随后增量刷新，避免列表卡住。
    *
    * @param mediaType 扫描类型（映射为 ScanTaskType）
    */
@@ -861,6 +887,13 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
 
       // 抑制扫描期间的 UI 通知，避免 ScanTaskPool / supplementScan / removeDeleted 多次 setData 导致闪烁
       this.suppressDataNotification = true;
+      // 扫描会用新结果替换内存列表，须先记下缓存 URI，结束后把未再扫到的记录软删写回 DB，
+      // 否则下次冷启动仍会先把已删项从缓存刷出来造成闪烁
+      const previousUris: string[] = [];
+      const previousFiles = this.getDataArray();
+      for (let i = 0; i < previousFiles.length; i++) {
+        previousUris.push(previousFiles[i].uri);
+      }
 
       const scanTaskType = this.getScanTaskType(mediaType);
       const callback = new MediaScanCallback(this, mediaType);
@@ -886,8 +919,9 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
       // 扫描完成后移除源文件已被删除的条目
       const currentData = this.getDataArray();
       await this.removeDeletedFiles(currentData);
+      await this.persistStaleCacheRecords(previousUris);
 
-      // 扫描流程结束，清除标志并统一通知 UI 一次
+      // 先通知 UI 再等缩略图：封面由 updateItemThumbnail 增量刷新，避免列表卡住不刷
       this.suppressDataNotification = false;
       this.notifyDataChanged();
       this.cacheManager.updateCache(MediaType.UNKNOWN, this.getDataArray());

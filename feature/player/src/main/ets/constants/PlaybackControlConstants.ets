@@ -27,4 +27,15 @@ export class PlaybackControlConstants {
    * 系统媒体控制卡片在会话刚激活时可能误发 pause（见 isShowPlayButton during render）。
    */
   static readonly REMOTE_PAUSE_GUARD_MS: number = 1500;
+  /** uiContext 未绑定时 ensureActive 重试上限；总耗时不超 3 * 200 = 600ms */
+  static readonly UI_CONTEXT_RETRY_TIMES: number = 3;
+  /** uiContext 重试基础间隔（毫秒），第 n 次为 n * BASE */
+  static readonly UI_CONTEXT_RETRY_DELAY_MS: number = 200;
+  /**
+   * setAVMetadata 临时性失败（系统忙/并发写）时的退避重试次数。
+   * 避免 setAVMetadata 长耗时阻塞 ensureActive 整体 await 链路。
+   */
+  static readonly METADATA_PUBLISH_RETRY_TIMES: number = 3;
+  /** setAVMetadata 重试基础间隔（毫秒），第 n 次为 n * BASE */
+  static readonly METADATA_PUBLISH_RETRY_DELAY_MS: number = 150;
 }

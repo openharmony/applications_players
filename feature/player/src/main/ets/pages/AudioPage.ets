@@ -108,6 +108,10 @@ export struct AudioPage {
     HiLog.i(TAG, `onFileInfoChange switch track uri=%{private}s`, this.fileInfo.uri);
     this.activeUri = this.fileInfo.uri;
     this.loadingStatus = LoadingStatus.LOAD_STATE_LOADING;
+    if (this.audioController.getActiveUri() === this.fileInfo.uri) {
+      HiLog.i(TAG, `onFileInfoChange ui only uri=%{private}s`, this.fileInfo.uri);
+      return;
+    }
     this.audioController.switchToTrack(this.fileInfo);
   }
 

@@ -48,6 +48,12 @@ import { PlaybackControlCenterBridge, PlaybackControlLaunchOptions } from '../se
 
 let TAG = 'AVPlayerController'
 
+/** 生命周期锁的释放回调，避免 ArkTS 在 Promise 闭包里直接改 let */
+class AvPlayerLifecycleUnlock {
+  resolve: () => void = (): void => {
+  };
+}
+
 export class AVPlayerController {
   playState: number = PlayConstants.STATUS_PAUSE;
   progressPlayState: number = PlayConstants.STATUS_PAUSE;
@@ -116,8 +122,31 @@ export class AVPlayerController {
   /** release 与 createAVPlayer 并发时的代际，避免过期实例回写 */
   private avPlayerGeneration: number = 0;
   private avPlayerEnsurePromise: Promise<boolean> | null = null;
+  /** recreate / ensureIdle 串行队列，避免连点切歌并行重建两个 AVPlayer */
+  private avPlayerLifecycleTail: Promise<void> = Promise.resolve();
+  /** 切源单飞进行中：error 回调不弹「文件损坏」、不抢 recover */
+  protected trackSwitchBusy: boolean = false;
+  /** 切歌后到新源 prepared 前，丢弃旧曲迟到的 timeUpdate，避免进度条跳变 */
+  protected suppressTimeUpdateUntilPrepared: boolean = false;
+  /** 最近一次 setFdSrc 对应的切歌代际，用于丢弃上一首排队的 error */
+  private sourceBindGeneration: number = 0;
   private continuousTaskRunning: boolean = false;
   private isSetSystemVolume: boolean = false;
+  /**
+   * 用户从进度条 End 触发 seek 进行中：true 时允许落到目标前关键帧的 timeUpdate，
+   * 避免进度冻结。UI 由松手点 + 实际时间差映射，不跟关键帧回退。
+   */
+  private isSeekingFromSlider: boolean = false;
+  /** 松手目标（毫秒），收到真实落点前用于识别 echo / 捕获基准 */
+  private sliderSeekHoldUntilMs: number = -1;
+  /** 第一次真实 timeUpdate（关键帧或精确落点） */
+  private sliderSeekBaseActualMs: number = -1;
+  /** 进度条显示原点 = 用户松手时间 */
+  private sliderSeekDisplayOriginMs: number = -1;
+  /** PREV_SYNC 落点过远时，已尝试一次 SEEK_CLOSEST */
+  private sliderSeekClosestRetried: boolean = false;
+  /** SEEK_CLOSEST 重试尚未收到 seekDone，忽略片头残留 timeUpdate */
+  private sliderSeekClosestInFlight: boolean = false;
   private pagePlayStateUpdater?: (state: number) => void;
   private progressPlayStateListeners: ((state: number) => void)[] = [];
   private volumePanelUpdater?: (show: boolean) => void;
@@ -218,14 +247,37 @@ export class AVPlayerController {
     if (this.playProgress === null) {
       return;
     }
+    if (this.suppressTimeUpdateUntilPrepared || this.trackSwitchBusy || this.hasPendingTrackSwitch()) {
+      this.paintSwitchProgressUi();
+      HiLog.i(TAG, 'syncBoundPlayProgress skip stale avTime during track switch');
+      return;
+    }
     const avTime = this.avPlayer?.currentTime ?? 0;
     const syncTime = avTime > 0 ? avTime :
       (this.currentTime > 0 ? this.currentTime : this.lastProgressUpdateTime);
-    if (syncTime <= 0) {
+    HiLog.i(TAG, `syncBoundPlayProgress time=${syncTime} duration=${this.getProgressDurationMs()}`);
+    const rawTime = syncTime > 0 ? syncTime : 0;
+    this.dropInsaneSliderSeekRemap(rawTime);
+    const uiTime = this.mapSliderSeekDisplayTime(rawTime);
+    this.initProgress(uiTime, true);
+    if (syncTime > 0 && this.sliderSeekBaseActualMs >= 0) {
+      this.lastProgressUpdateTime = syncTime;
+    }
+  }
+
+  /** 切源过程中进度条归零并预填新曲总时长，不读取旧曲 currentTime */
+  private paintSwitchProgressUi(): void {
+    if (this.playProgress === null) {
       return;
     }
-    HiLog.i(TAG, `syncBoundPlayProgress time=${syncTime}`);
-    this.initProgress(syncTime, true);
+    this.playProgress.progressVal = 0;
+    this.playProgress.currentTime = '00:00';
+    if (this.saveFileInfo.duration > 0) {
+      this.playProgress.totalTime =
+        DateFormatUtil.secondToTime(Math.floor(this.saveFileInfo.duration / Constants.A_THOUSAND));
+    } else {
+      this.playProgress.totalTime = '00:00';
+    }
   }
 
   initPlayPage(playPage: Object): void {
@@ -429,13 +481,43 @@ export class AVPlayerController {
   }
 
   /**
+   * 串行执行 AVPlayer 生命周期操作。ensureIdle 内部走 unlocked recreate，避免同锁重入死锁。
+   */
+  private async runSerializedAvPlayerOp<T>(op: () => Promise<T>): Promise<T> {
+    const previous: Promise<void> = this.avPlayerLifecycleTail;
+    const unlock: AvPlayerLifecycleUnlock = new AvPlayerLifecycleUnlock();
+    this.avPlayerLifecycleTail = new Promise<void>((resolve: () => void) => {
+      unlock.resolve = resolve;
+    });
+    try {
+      await previous;
+      return await op();
+    } finally {
+      unlock.resolve();
+    }
+  }
+
+  /**
    * 销毁并惰性重建 AVPlayer（释放失败或非 idle 无法 reset 时自愈）。
-   * 子类可重写以在重建后重绑 surface 等资源。
+   * 子类通过 onAvPlayerRecreated 在重建后重绑资源（视频勿在 idle 写 surfaceId）。
    */
   protected async recreateAvPlayer(): Promise<boolean> {
+    return await this.runSerializedAvPlayerOp((): Promise<boolean> => {
+      return this.recreateAvPlayerUnlocked();
+    });
+  }
+
+  /**
+   * 重建完成后的钩子（默认空实现）。视频只记录 surface，真正绑定放到 toInitialized。
+   */
+  protected onAvPlayerRecreated(): void {
+  }
+
+  private async recreateAvPlayerUnlocked(): Promise<boolean> {
     HiLog.i(TAG, 'recreateAvPlayer');
     this.avPlayerGeneration++;
     this.unregisterListeners();
+    this.avPlayerEnsurePromise = null;
     if (this.avPlayer !== null) {
       try {
         await this.avPlayer.release();
@@ -445,7 +527,11 @@ export class AVPlayerController {
       }
       this.avPlayer = null;
     }
-    return await this.ensureAvPlayer();
+    const created: boolean = await this.ensureAvPlayer();
+    if (created) {
+      this.onAvPlayerRecreated();
+    }
+    return created;
   }
 
   /** 当前 AVPlayer 是否为 idle（重建后需重新读 state，避免类型收窄） */
@@ -458,6 +544,12 @@ export class AVPlayerController {
    * stop+reset 失败或仍非 idle 时重建实例，避免 5400102 卡死。
    */
   protected async ensureIdleForSetSource(): Promise<boolean> {
+    return await this.runSerializedAvPlayerOp((): Promise<boolean> => {
+      return this.ensureIdleForSetSourceUnlocked();
+    });
+  }
+
+  private async ensureIdleForSetSourceUnlocked(): Promise<boolean> {
     const ready = await this.ensureAvPlayer();
     if (!ready || this.avPlayer === null) {
       return false;
@@ -468,7 +560,7 @@ export class AVPlayerController {
     const state = this.avPlayer.state;
     if (state === 'released' || state === 'error') {
       HiLog.w(TAG, `ensureIdleForSetSource recreate from state=${state}`);
-      const recreated = await this.recreateAvPlayer();
+      const recreated = await this.recreateAvPlayerUnlocked();
       return recreated && this.isAvPlayerIdle();
     }
     try {
@@ -482,7 +574,7 @@ export class AVPlayerController {
     } catch (err) {
       const error = err as BusinessError;
       HiLog.e(TAG, `ensureIdleForSetSource stop/reset failed: ${error.message}`);
-      const recreated = await this.recreateAvPlayer();
+      const recreated = await this.recreateAvPlayerUnlocked();
       return recreated && this.isAvPlayerIdle();
     }
     if (this.isAvPlayerIdle()) {
@@ -490,7 +582,7 @@ export class AVPlayerController {
     }
     const stuckState = this.avPlayer !== null ? this.avPlayer.state : 'null';
     HiLog.w(TAG, `ensureIdleForSetSource still state=${stuckState}, recreate`);
-    const recreated = await this.recreateAvPlayer();
+    const recreated = await this.recreateAvPlayerUnlocked();
     return recreated && this.isAvPlayerIdle();
   }
 
@@ -523,6 +615,7 @@ export class AVPlayerController {
   setFdSrc(fdSrc: number): void {
     HiLog.i(TAG, `setFdSrc: ${String(fdSrc)}`);
     this.fdSrc = fdSrc;
+    this.sourceBindGeneration = this.trackSwitchGeneration;
     this.applyPendingAvPlayerSource();
   }
 
@@ -593,18 +686,35 @@ export class AVPlayerController {
 
   setProgressVisible(visible: boolean) {
     this.isProgressVisible = visible;
-    if (this.currentTime < this.lastProgressUpdateTime ||
-      this.currentTime > this.lastProgressUpdateTime + PlayConstants.TIME_UPDATE_MAX_INTERVAL) {
-      HiLog.w(TAG, `time update back, lastTime:${this.lastProgressUpdateTime} time:${this.currentTime}`);
-      return;
-    }
     if (visible && this.playProgress) {
-      this.initProgress(this.currentTime, true);
+      this.syncBoundPlayProgress();
     }
   }
 
   getPlayState(): number {
     return this.playState;
+  }
+
+  /**
+   * 暂停后 play 常从 0 起播。若滑条仍锁在松手点，先 CLOSEST 回到 hold。
+   */
+  private ensureSeekHoldBeforePlay(): void {
+    if (this.avPlayer === null || this.isAudioPage) {
+      return;
+    }
+    const hold = this.sliderSeekHoldUntilMs;
+    if (hold < 0) {
+      return;
+    }
+    const pos = this.avPlayer.currentTime ?? 0;
+    const gap = hold >= pos ? (hold - pos) : (pos - hold);
+    if (gap <= this.getMaxSliderSeekRemapGapMs()) {
+      return;
+    }
+    this.sliderSeekClosestRetried = true;
+    this.sliderSeekClosestInFlight = true;
+    HiLog.w(TAG, `play reseek to hold=${hold} pos=${pos}`);
+    this.avPlayer.seek(hold, media.SeekMode.SEEK_CLOSEST);
   }
 
   /**
@@ -685,6 +795,7 @@ export class AVPlayerController {
     }
     if (this.avPlayer !== null && AVPLAYER_PREPARED_STATE.has(this.avPlayer.state)) {
       try {
+        this.ensureSeekHoldBeforePlay();
         await this.avPlayer.play();
         this.armPlayProgressWatch();
       } catch (err) {
@@ -1111,6 +1222,7 @@ export class AVPlayerController {
     this.releaseResource();
     this.avPlayer !== null && this.avPlayer.reset();
     this.lastProgressUpdateTime = 0;
+    this.clearSliderSeekRemap();
     if (this.playProgress) {
       this.playProgress.progressVal = 0;
       this.playProgress.currentTime = '00:00';
@@ -1120,6 +1232,8 @@ export class AVPlayerController {
   /** 开始一次切歌，返回代际 token 供后续校验 */
   protected beginTrackSwitch(): number {
     this.trackSwitchGeneration++;
+    this.suppressTimeUpdateUntilPrepared = true;
+    this.markTrackSwitchBusy();
     return this.trackSwitchGeneration;
   }
 
@@ -1128,30 +1242,87 @@ export class AVPlayerController {
     return generation === this.trackSwitchGeneration;
   }
 
+  protected markTrackSwitchBusy(): void {
+    this.trackSwitchBusy = true;
+  }
+
+  protected markTrackSwitchSettled(): void {
+    this.trackSwitchBusy = false;
+    this.suppressTimeUpdateUntilPrepared = false;
+  }
+
+  /** 子类覆盖：单飞队列里还有更新的待切目标 */
+  protected hasPendingTrackSwitch(): boolean {
+    return false;
+  }
+
+  /**
+   * 连点切歌时立即重置进度 UI，并用 FileInfo.duration 预填总时长，保证跟手。
+   */
+  protected resetProgressUiForSwitch(fileInfo: FileInfo): void {
+    this.suppressTimeUpdateUntilPrepared = true;
+    this.markTrackSwitchBusy();
+    this.currentTime = 0;
+    this.lastProgressUpdateTime = 0;
+    this.clearSliderSeekRemap();
+    this.paintSwitchProgressUiForFile(fileInfo);
+    if (this.playPage !== null) {
+      this.playPage.loadingStatus = LoadingStatus.LOAD_STATE_LOADING;
+    }
+  }
+
+  private paintSwitchProgressUiForFile(fileInfo: FileInfo): void {
+    if (this.playProgress === null) {
+      return;
+    }
+    this.playProgress.progressVal = 0;
+    this.playProgress.currentTime = '00:00';
+    if (fileInfo.duration > 0) {
+      this.playProgress.totalTime =
+        DateFormatUtil.secondToTime(Math.floor(fileInfo.duration / Constants.A_THOUSAND));
+    } else {
+      this.playProgress.totalTime = '00:00';
+    }
+  }
+
+  /** 新源已绑定 fd，后续 error 按当前代际判断是否迟到 */
+  protected markTrackSourceBound(): void {
+    this.sourceBindGeneration = this.trackSwitchGeneration;
+  }
+
+  private isAvPlayerPlaybackHealthy(): boolean {
+    if (this.avPlayer === null) {
+      return false;
+    }
+    const state = this.avPlayer.state;
+    return state === 'playing' || state === 'prepared' || state === 'paused' ||
+      state === 'initialized' || state === 'completed';
+  }
+
   /** 切歌前重置播放器状态，保留 AVPlayer 实例与监听；失败则重建以保证 idle */
   async prepareForTrackSwitch(): Promise<void> {
     HiLog.i(TAG, 'prepareForTrackSwitch');
+    this.suppressTimeUpdateUntilPrepared = true;
+    this.markTrackSwitchBusy();
     this.releaseResource();
     const idle = await this.ensureIdleForSetSource();
     if (!idle) {
       HiLog.e(TAG, 'prepareForTrackSwitch failed to reach idle');
     }
-    this.currentTime = 0;
-    this.lastProgressUpdateTime = 0;
-    if (this.playProgress !== null) {
-      this.playProgress.progressVal = 0;
-      this.playProgress.currentTime = '00:00';
-    }
-    if (this.playPage !== null) {
-      this.playPage.loadingStatus = LoadingStatus.LOAD_STATE_LOADING;
-    }
+    this.resetProgressUiForSwitch(this.saveFileInfo);
   }
 
   private handleStateChange() {
     if (this.avPlayer === null) {
       return;
     }
+    const boundGeneration: number = this.avPlayerGeneration;
     this.avPlayer.on('stateChange', async (state) => {
+      if (boundGeneration !== this.avPlayerGeneration) {
+        HiLog.w(TAG, `stateChange stale gen=${boundGeneration} current=${this.avPlayerGeneration} ` +
+          `state=${state}, skip`);
+        return;
+      }
       switch (state) {
         case 'idle':
           this.toIdle()
@@ -1196,10 +1367,43 @@ export class AVPlayerController {
     this.avPlayer.on('volumeChange', (volume: number) => {
       HiLog.d(TAG, `volumeChange to ${volume}`);
     });
+    const errorBoundGeneration: number = this.avPlayerGeneration;
     this.avPlayer.on('error', (err: BusinessError) => {
+      if (errorBoundGeneration !== this.avPlayerGeneration) {
+        HiLog.w(TAG, `avPlayer error stale gen=${errorBoundGeneration} ` +
+          `current=${this.avPlayerGeneration} code=${err.code}, skip`);
+        return;
+      }
       const fromInterruptResume = this.pendingInterruptResume;
+      const operateNotPermit = err.code === 5400102;
+      const staleSwitch = this.trackSwitchGeneration !== this.sourceBindGeneration;
+      const playerState = this.avPlayer !== null ? this.avPlayer.state : 'null';
       HiLog.e(TAG, `avPlayer error message: ${err.message}, code: ${err.code} ` +
-        `fromInterruptResume=${fromInterruptResume} retry=${this.interruptResumeRetryCount}`);
+        `fromInterruptResume=${fromInterruptResume} retry=${this.interruptResumeRetryCount} ` +
+        `switchBusy=${this.trackSwitchBusy} staleSwitch=${staleSwitch} state=${playerState}`);
+      if (staleSwitch && !fromInterruptResume) {
+        HiLog.w(TAG, 'avPlayer error ignored: stale track switch');
+        return;
+      }
+      if (operateNotPermit) {
+        if (!fromInterruptResume &&
+          (this.trackSwitchBusy || this.hasPendingTrackSwitch() || this.isAvPlayerPlaybackHealthy())) {
+          HiLog.w(TAG, 'avPlayer 5400102 ignored (not file corrupt)');
+          return;
+        }
+        if (!fromInterruptResume) {
+          HiLog.w(TAG, 'avPlayer 5400102 recover without toast');
+          this.error();
+          void this.recoverAvPlayerAfterError();
+          return;
+        }
+      }
+      if (this.trackSwitchBusy || this.hasPendingTrackSwitch()) {
+        if (this.isAvPlayerPlaybackHealthy() || playerState !== 'error') {
+          HiLog.w(TAG, `avPlayer error ignored during track switch state=${playerState}`);
+          return;
+        }
+      }
       this.error();
       if (!fromInterruptResume) {
         promptAction.showToast({ message: $r('app.string.file_parse_failure_tips') });
@@ -1224,6 +1428,7 @@ export class AVPlayerController {
     this.avPlayer.on('seekDone', (seekDoneTime: number) => {
       this.currentTime = seekDoneTime;
       this.isSeekDone = true;
+      this.sliderSeekClosestInFlight = false;
       HiLog.i(TAG, `onSeekDone,isSeekDone: ${this.isSeekDone},seekDoneTime: ${seekDoneTime}`);
     })
 
@@ -1249,6 +1454,10 @@ export class AVPlayerController {
       HiLog.e(TAG, `toInitialized, avPlayer is null`);
       return;
     }
+    if (this.avPlayer.state !== 'initialized') {
+      HiLog.w(TAG, `toInitialized skip: stale state=${this.avPlayer.state}`);
+      return;
+    }
     audio.AudioPrivacyType.PRIVACY_TYPE_PUBLIC;
 
     this.avPlayer.audioRendererInfo = {
@@ -1263,6 +1472,8 @@ export class AVPlayerController {
       HiLog.w(TAG, `toPrepared, this.aveplayer.state:${this.avPlayer?.state}`);
       return;
     }
+    this.markTrackSwitchSettled();
+    this.suppressTimeUpdateUntilPrepared = false;
 
     this.applyShareInterruptMode();
     this.avPlayer.setVolume(this.volume);
@@ -1451,6 +1662,7 @@ export class AVPlayerController {
 
   toPlaying(): void {
     HiLog.i(TAG, `toPlaying isAudioPage:${this.isAudioPage}`);
+    this.markTrackSwitchSettled();
     this.interruptedWhilePlaying = false;
     this.pendingInterruptResume = false;
     this.cancelInterruptResumeTimer();
@@ -1497,6 +1709,7 @@ export class AVPlayerController {
 
   toCompleted(): void {
     HiLog.i(TAG, `toCompleted`);
+    this.clearSliderSeekRemap();
     this.avPlayer !== null && this.avPlayer.seek(0);
     this.currentTime = 0;
     if (this.playProgress !== null) {
@@ -1517,9 +1730,11 @@ export class AVPlayerController {
   }
 
   timeUpdate(time: number): void {
+    if (this.suppressTimeUpdateUntilPrepared) {
+      return;
+    }
     HiLog.d(TAG, `timeUpdate:${time} last:${this.lastProgressUpdateTime}`);
-    if (time < this.lastProgressUpdateTime ||
-      time > this.lastProgressUpdateTime + PlayConstants.TIME_UPDATE_MAX_INTERVAL) {
+    if (!this.isAcceptableTimeUpdate(time, this.lastProgressUpdateTime)) {
       HiLog.w(TAG, `time update back, lastProgressUpdateTime:${this.lastProgressUpdateTime} time:${time}`);
       if (this.isSeekDone) {
         this.lastProgressUpdateTime = time;
@@ -1536,9 +1751,158 @@ export class AVPlayerController {
     }
     this.currentTime = time;
     if (this.playProgress) {
-      this.initProgress(time);
+      if (this.noteSliderSeekTargetEcho(time)) {
+        this.savePlaylistResumeIfNeeded(false);
+        return;
+      }
+      this.resolveSliderSeekLanding(time);
+      if (this.isAwaitingSliderSeekLanding()) {
+        this.savePlaylistResumeIfNeeded(false);
+        return;
+      }
+      this.dropInsaneSliderSeekRemap(time);
+      const uiTime = this.mapSliderSeekDisplayTime(time);
+      this.initProgress(uiTime);
+      this.lastProgressUpdateTime = time;
     }
     this.savePlaylistResumeIfNeeded(false);
+  }
+
+  private isAcceptableTimeUpdate(time: number, last: number): boolean {
+    if (last === 0) {
+      return true;
+    }
+    if (time >= last && time <= last + PlayConstants.TIME_UPDATE_MAX_INTERVAL) {
+      return true;
+    }
+    if (time < last && last - time <= PlayConstants.TIME_UPDATE_BACKWARD_TOLERANCE_MS) {
+      return true;
+    }
+    if (this.isAwaitingSliderSeekLanding() && time < last &&
+      last - time <= PlayConstants.TIME_UPDATE_SEEK_KEYFRAME_BACK_MAX_MS) {
+      return true;
+    }
+    return false;
+  }
+
+  private isAwaitingSliderSeekLanding(): boolean {
+    return this.sliderSeekHoldUntilMs >= 0 && this.sliderSeekBaseActualMs < 0;
+  }
+
+  protected clearSliderSeekRemap(): void {
+    this.isSeekingFromSlider = false;
+    this.sliderSeekHoldUntilMs = -1;
+    this.sliderSeekBaseActualMs = -1;
+    this.sliderSeekDisplayOriginMs = -1;
+    this.sliderSeekClosestRetried = false;
+    this.sliderSeekClosestInFlight = false;
+  }
+
+  private getProgressDurationMs(): number {
+    return this.avPlayer?.duration ?? 0;
+  }
+
+  /** 短片按时长 12% 收紧，长片不超过 4s，避免片头关键帧把整段进度映射错位 */
+  private getMaxSliderSeekRemapGapMs(): number {
+    const duration = this.getProgressDurationMs();
+    const byRatio = duration > 0 ?
+      duration * PlayConstants.SLIDER_SEEK_REMAP_MAX_DURATION_RATIO :
+      PlayConstants.SLIDER_SEEK_REMAP_MAX_GAP_MS;
+    const minGap = PlayConstants.TIME_UPDATE_BACKWARD_TOLERANCE_MS * 4;
+    let capped = byRatio;
+    if (capped < minGap) {
+      capped = minGap;
+    }
+    if (capped > PlayConstants.SLIDER_SEEK_REMAP_MAX_GAP_MS) {
+      capped = PlayConstants.SLIDER_SEEK_REMAP_MAX_GAP_MS;
+    }
+    return capped;
+  }
+
+  private dropInsaneSliderSeekRemap(displayTime: number): void {
+    if (this.sliderSeekBaseActualMs < 0 || this.sliderSeekDisplayOriginMs < 0) {
+      return;
+    }
+    const mapped = this.mapSliderSeekDisplayTime(displayTime);
+    const gap = mapped >= displayTime ? (mapped - displayTime) : (displayTime - mapped);
+    if (gap > this.getMaxSliderSeekRemapGapMs()) {
+      HiLog.w(TAG, `slider seek remap dropped mapped=${mapped} actual=${displayTime} gap=${gap}`);
+      this.clearSliderSeekRemap();
+    }
+  }
+
+  /**
+   * seek / seekDone 会回打松手目标（常见为 floor(hold)），比 hold 略小，不是关键帧时钟。
+   */
+  private noteSliderSeekTargetEcho(displayTime: number): boolean {
+    if (!this.isAwaitingSliderSeekLanding()) {
+      return false;
+    }
+    const delta = displayTime - this.sliderSeekHoldUntilMs;
+    if (delta <= 0 && delta >= -PlayConstants.TIME_UPDATE_BACKWARD_TOLERANCE_MS) {
+      HiLog.i(TAG, `slider seek echo ignored time=${displayTime} hold=${this.sliderSeekHoldUntilMs}`);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * 关键帧明显落后于松手点 → 建立映射；已超过松手点 → 无需映射，跟真实时钟。
+   */
+  private resolveSliderSeekLanding(displayTime: number): void {
+    if (!this.isAwaitingSliderSeekLanding()) {
+      return;
+    }
+    const hold = this.sliderSeekHoldUntilMs;
+    if (displayTime + PlayConstants.TIME_UPDATE_BACKWARD_TOLERANCE_MS >= hold) {
+      HiLog.i(TAG, `slider seek exact landing time=${displayTime} hold=${hold}`);
+      this.clearSliderSeekRemap();
+      return;
+    }
+    const gap = hold - displayTime;
+    if (gap > this.getMaxSliderSeekRemapGapMs()) {
+      if (!this.sliderSeekClosestRetried && this.avPlayer !== null && !this.isAudioPage) {
+        this.sliderSeekClosestRetried = true;
+        this.sliderSeekClosestInFlight = true;
+        HiLog.w(TAG, `slider seek landing too far actual=${displayTime} hold=${hold}, retry SEEK_CLOSEST`);
+        this.avPlayer.seek(hold, media.SeekMode.SEEK_CLOSEST);
+        return;
+      }
+      if (this.sliderSeekClosestInFlight) {
+        HiLog.i(TAG, `slider seek wait closest actual=${displayTime} hold=${hold}`);
+        return;
+      }
+      HiLog.w(TAG, `slider seek remap abandoned actual=${displayTime} hold=${hold}`);
+      this.clearSliderSeekRemap();
+      return;
+    }
+    this.sliderSeekBaseActualMs = displayTime;
+    this.sliderSeekDisplayOriginMs = hold;
+    this.isSeekingFromSlider = false;
+    HiLog.i(TAG, `slider seek remap base=${displayTime} origin=${this.sliderSeekDisplayOriginMs}`);
+  }
+
+  /**
+   * 进度条从松手点继续走，并在片尾与解码器对齐。
+   */
+  private mapSliderSeekDisplayTime(displayTime: number): number {
+    if (this.sliderSeekBaseActualMs < 0 || this.sliderSeekDisplayOriginMs < 0) {
+      return displayTime;
+    }
+    const origin = this.sliderSeekDisplayOriginMs;
+    const base = this.sliderSeekBaseActualMs;
+    const duration = this.getProgressDurationMs();
+    let mapped = origin + (displayTime - base);
+    if (duration > base && duration > origin) {
+      mapped = origin + (displayTime - base) * (duration - origin) / (duration - base);
+    }
+    if (mapped < 0) {
+      mapped = 0;
+    }
+    if (duration > 0 && mapped > duration) {
+      mapped = duration;
+    }
+    return mapped;
   }
 
   /**
@@ -1596,6 +1960,7 @@ export class AVPlayerController {
   }
 
   error(): void {
+    this.markTrackSwitchSettled();
     HiLog.e(TAG, `default error`);
   }
 
@@ -1686,22 +2051,22 @@ export class AVPlayerController {
    * 必须先 await 会话创建，再写 PLAY + 进度；否则 setPlaybackState 会在 avSession 未就绪时丢包，
    * 随后仅带 position 的 updatePosition 还会把状态清成 INITIAL，引发播控中心误发 pause。
    *
-   * @param refreshMetadata 是否在播放时刷新元数据（视频建议 true）
+   * @param refreshMetadata 已废弃，保留签名仅为子类 override 兼容
    */
   protected applyControlCenterPlayingState(refreshMetadata: boolean = false): void {
     this.startContinuousTask(this.saveFileInfo);
-    void this.syncControlCenterPlayingState(refreshMetadata);
+    void this.syncControlCenterPlayingState();
   }
 
-  private async syncControlCenterPlayingState(refreshMetadata: boolean): Promise<void> {
-    await this.setSessionInfo(AVSessionManager.PlaybackState.PLAYBACK_STATE_PLAY);
+  private async syncControlCenterPlayingState(): Promise<void> {
+    try {
+      await this.setSessionInfo(AVSessionManager.PlaybackState.PLAYBACK_STATE_PLAY);
+    } catch (err) {
+      const error = err as BusinessError;
+      HiLog.w(TAG, `syncControlCenterPlayingState setSessionInfo failed code=${error.code} message=${error.message}`);
+    }
     this.setPlaybackState(AVSessionManager.PlaybackState.PLAYBACK_STATE_PLAY);
     this.setPlayingTime(this.avPlayer?.currentTime ?? 0);
-    if (refreshMetadata) {
-      await this.updateAvSessionMetadata();
-      // 元数据刷新后再次确认 PLAY，避免系统侧状态抖动
-      this.setPlaybackState(AVSessionManager.PlaybackState.PLAYBACK_STATE_PLAY);
-    }
   }
 
   /**
@@ -2035,7 +2400,7 @@ export class AVPlayerController {
   }
 
   initProgress(time: number, isForced: boolean = false): void {
-    if (this.avPlayer === null || this.playProgress === null) {
+    if (this.playProgress === null || (this.avPlayer === null && !isForced)) {
       HiLog.e(TAG, `initProgress avPlayer or playProgress is null`);
       return;
     }
@@ -2046,13 +2411,14 @@ export class AVPlayerController {
       }
       let curSec2ProgressVal = 0;
       let nextSec2ProgressVal = 0;
-      let preciseTotalSecond = (this.avPlayer.duration / Constants.A_THOUSAND);
+      const durationMs = this.avPlayer?.duration ?? 0;
+      let preciseTotalSecond = (durationMs / Constants.A_THOUSAND);
       if (preciseTotalSecond > 0 && this.nowSeconds !== null) {
         let oneSecond2ProgressVal = Constants.ONE_HUNDRED / preciseTotalSecond;
         curSec2ProgressVal = this.nowSeconds * oneSecond2ProgressVal;
         nextSec2ProgressVal = (this.nowSeconds + 1) * oneSecond2ProgressVal;
       }
-      if (this.isMovingProgressSlider) {
+      if (this.isMovingProgressSlider && !this.isSeekingFromSlider) {
         return;
       }
       if (this.playProgress.progressVal >= curSec2ProgressVal && this.playProgress.progressVal < nextSec2ProgressVal) {
@@ -2073,13 +2439,14 @@ export class AVPlayerController {
   }
 
   toFindSecondTime(time: number): void {
-    if (this.avPlayer === null || this.playProgress === null) {
+    if (this.playProgress === null) {
       HiLog.e(TAG, `toFindSecondTime avPlayer or playProgress is null`);
       return;
     }
     this.lastProgressUpdateTime = time;
     this.nowSeconds = Math.floor(time / Constants.A_THOUSAND);
-    let totalSeconds = Math.floor(this.avPlayer.duration / Constants.A_THOUSAND);
+    const durationMs = this.avPlayer?.duration ?? this.saveFileInfo.duration;
+    let totalSeconds = Math.floor(durationMs / Constants.A_THOUSAND);
     this.playProgress.currentTime = DateFormatUtil.secondToTime(this.nowSeconds);
     this.playProgress.totalTime = DateFormatUtil.secondToTime(totalSeconds);
   }
@@ -2104,6 +2471,7 @@ export class AVPlayerController {
         clearTimeout(this.sliderPlayEvent);
         this.sliderPlayEvent = null;
       }
+      this.clearSliderSeekRemap();
       let time = value * this.avPlayer.duration / Constants.ONE_HUNDRED;
       this.lastProgressUpdateTime = time;
       HiLog.i(TAG, `seek begin, seek mode: ${mode}, seek value: ${value} time:${time}`);
@@ -2114,24 +2482,33 @@ export class AVPlayerController {
       }
       let isChangeEnd: boolean = mode === SliderChangeMode.End;
       let time = value * this.avPlayer.duration / Constants.ONE_HUNDRED;
-      HiLog.i(TAG,
-        `seek ${isChangeEnd ? 'end' : 'moving'}, seek mode: ${mode}, seek value: ${value}, seekTime: ${time}`);
+      this.currentTime = time;
+      if (!isChangeEnd) {
+        this.clearSliderSeekRemap();
+        this.progressUpdateTime(time);
+        return;
+      }
+      HiLog.i(TAG, `seek end, seek mode: ${mode}, seek value: ${value}, seekTime: ${time}`);
       this.progressUpdateTime(time);
       if (isAuidoPage) {
         this.avPlayer.seek(time);
       } else {
-        this.avPlayer.seek(time,
-          mode === SliderChangeMode.Moving ? media.SeekMode.SEEK_PREV_SYNC : media.SeekMode.SEEK_CLOSEST);
+        this.avPlayer.seek(time, media.SeekMode.SEEK_CLOSEST);
+        this.isSeekingFromSlider = true;
+        this.sliderSeekHoldUntilMs = time;
+        this.sliderSeekDisplayOriginMs = time;
+        this.sliderSeekBaseActualMs = -1;
+        this.initProgress(time, true);
       }
 
-      this.currentTime = time;
       this.setPlayingTime(time);
-      if (isChangeEnd && this.wasPlayingBeforeSeek) {
+      if (this.wasPlayingBeforeSeek) {
         const shouldResume = this.wasPlayingBeforeSeek;
         this.wasPlayingBeforeSeek = false;
         this.sliderPlayEvent = setTimeout(() => {
           if (shouldResume && this.avPlayer !== null) {
             this.localStorage?.setOrCreate<boolean>('swiperVideo', undefined);
+            this.ensureSeekHoldBeforePlay();
             this.avPlayer.play();
           }
           clearTimeout(this.sliderPlayEvent);

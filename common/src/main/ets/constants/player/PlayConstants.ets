@@ -98,6 +98,21 @@ export class PlayConstants {
 
   public static readonly ORIGIN_FRAME_RATE: number = 4800;
   public static readonly TIME_UPDATE_MAX_INTERVAL = 2000;
+  /** timeUpdate 允许的轻微回退抖动（毫秒），避免进度被误丢弃 */
+  public static readonly TIME_UPDATE_BACKWARD_TOLERANCE_MS = 50;
+  /**
+   * 进度条 seek 后允许接受的关键帧回退上限（毫秒）。
+   * 仅用于放行 timeUpdate；是否建立 remap 另受时长比例约束。
+   */
+  public static readonly TIME_UPDATE_SEEK_KEYFRAME_BACK_MAX_MS = 15000;
+  /**
+   * 进度条 remap 相对片长的最大比例。
+   * 短视频仅片头关键帧时，SEEK_PREV_SYNC 会落到 0，若仍按松手点映射，
+   * 会出现画面在开头、滑块停在 28% 并被拉满整段。
+   */
+  public static readonly SLIDER_SEEK_REMAP_MAX_DURATION_RATIO = 0.12;
+  /** 进度条 remap 绝对上限（毫秒），覆盖常见 GOP，避免长视频 12% 过大 */
+  public static readonly SLIDER_SEEK_REMAP_MAX_GAP_MS = 4000;
 
   public static readonly VIDEO_SHOW_LOADING_TIMEOUT = 300;
   public static readonly MAX_VIDEO_SHOW_LOADING_TIME = 5000;

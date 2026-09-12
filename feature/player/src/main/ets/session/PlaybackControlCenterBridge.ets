@@ -58,6 +58,10 @@ export class PlaybackControlCenterBridge {
     AVSessionManager.PlaybackState.PLAYBACK_STATE_INITIAL;
   /** 忽略播控中心误发 pause 的截止时间戳（毫秒） */
   private ignoreRemotePauseUntilMs: number = 0;
+  private lastMetadata: AVSessionManager.AVMetadata | undefined = undefined;
+  private lastLaunchOptions: PlaybackControlLaunchOptions | undefined = undefined;
+  /** uiContext 未就绪时 ensureActive 早退后的重试计数；bind() 时清零 */
+  private uiContextRetryCount: number = 0;
 
   /**
    * @param mediaKind 音频或视频，决定 AVSession 类型与 AppStorage 键
@@ -75,6 +79,7 @@ export class PlaybackControlCenterBridge {
   bind(handler: IPlaybackControlHandler, context: common.UIAbilityContext): void {
     this.handler = handler;
     this.uiContext = context;
+    this.uiContextRetryCount = 0;
   }
 
   /**
@@ -90,8 +95,25 @@ export class PlaybackControlCenterBridge {
     metadata: AVSessionManager.AVMetadata,
     launchOptions?: PlaybackControlLaunchOptions
   ): Promise<boolean> {
-    if (!this.uiContext) {
+    this.lastPlaybackState = state;
+    this.lastMetadata = metadata;
+    this.lastLaunchOptions = launchOptions;
+    const boundContext: common.UIAbilityContext | undefined = this.uiContext;
+    if (boundContext === undefined) {
       HiLog.w(TAG, `ensureActive aborted noContext kind=${this.mediaKind}`);
+      this.scheduleEnsureActiveRetry(state, metadata, launchOptions);
+      return false;
+    }
+    // 高频切歌快速路径：avSession 已存在时跳过 destroy/create/activate，
+    // 只写 metadata + state，避免反复触发系统侧通知销毁重绘节流。
+    const liveSession: AVSessionManager.AVSession | undefined = this.avSession;
+    if (liveSession !== undefined) {
+      HiLog.i(TAG, `ensureActive fast path kind=${this.mediaKind} assetId=${metadata.assetId}`);
+      this.updatePlaybackState(state);
+      if (launchOptions !== undefined) {
+        this.applyLaunchAbility(launchOptions.fileInfo);
+      }
+      this.scheduleMetadataPublish(metadata);
       return false;
     }
     let created = false;
@@ -105,40 +127,36 @@ export class PlaybackControlCenterBridge {
         HiLog.i(TAG, `ensureActive destroyedOpposite kind=${this.mediaKind}`);
       }
       const storedSession = AppStorage.get(storageKey) as AVSessionManager.AVSession | undefined;
-      if (storedSession !== undefined && this.avSession?.sessionId !== storedSession.sessionId) {
+      if (storedSession !== undefined) {
         await this.destroySession(storedSession);
-        if (this.avSession) {
-          await this.destroySession(this.avSession);
-          this.avSession = undefined;
-        }
       }
-      if (!this.avSession) {
-        const sessionType = this.mediaKind === PlaybackMediaKind.AUDIO ? 'audio' : 'video';
-        this.avSession = await AVSessionManager.createAVSession(this.uiContext, 'HiPreview', sessionType);
-        this.registerCallbacks();
-        AppStorage.setOrCreate(storageKey, this.avSession);
-        created = true;
-        HiLog.i(TAG, `ensureActive created kind=${this.mediaKind}`);
-      }
+      const sessionType = this.mediaKind === PlaybackMediaKind.AUDIO ? 'audio' : 'video';
+      const createdSession: AVSessionManager.AVSession =
+        await AVSessionManager.createAVSession(boundContext, 'HiPreview', sessionType);
+      this.avSession = createdSession;
+      this.registerCallbacks();
+      AppStorage.setOrCreate(storageKey, createdSession);
+      created = true;
+      HiLog.i(TAG, `ensureActive created kind=${this.mediaKind}`);
     } catch (err) {
       const error = err as BusinessError;
       HiLog.e(TAG, `ensureActive failed kind=${this.mediaKind} message=${error.message} code=${error.code}`);
       return false;
     }
 
-    if (!this.avSession) {
+    const activeSession: AVSessionManager.AVSession | undefined = this.avSession;
+    if (activeSession === undefined) {
       return false;
     }
 
-    await this.avSession.activate();
-    // 先写元数据再落状态，避免后续仅带 position 的 setAVPlaybackState 把 state 清成 INITIAL(0)
-    if (created) {
-      await this.publishMetadata(metadata);
-    }
+    await activeSession.activate();
+    // PLAY state 先于 metadata 派发（setAVPlaybackState 不阻塞）；
+    // metadata 走 fire-and-forget，避免 setAVMetadata 阻塞 ensureActive 整体 await 链。
     this.updatePlaybackState(state);
     if (launchOptions !== undefined) {
       this.applyLaunchAbility(launchOptions.fileInfo);
     }
+    this.scheduleMetadataPublish(metadata);
     return created;
   }
 
@@ -148,16 +166,49 @@ export class PlaybackControlCenterBridge {
    * @param metadata AVSession 元数据
    */
   async publishMetadata(metadata: AVSessionManager.AVMetadata): Promise<void> {
+    const maxAttempts = PlaybackControlConstants.METADATA_PUBLISH_RETRY_TIMES;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const session: AVSessionManager.AVSession | undefined = this.avSession;
+      if (session === undefined) {
+        return;
+      }
+      try {
+        await session.setAVMetadata(metadata);
+        HiLog.i(TAG,
+          `publishMetadata kind=${this.mediaKind} assetId=${metadata.assetId} ` +
+            `title=${metadata.title} attempt=${attempt}`);
+        return;
+      } catch (err) {
+        const error = err as BusinessError;
+        HiLog.w(TAG,
+          `publishMetadata failed kind=${this.mediaKind} attempt=${attempt}/${maxAttempts} ` +
+            `code=${error.code} message=${error.message}`);
+        if (error.code === 6600102) {
+          return;
+        }
+        if (attempt < maxAttempts) {
+          await this.delayMs(PlaybackControlConstants.METADATA_PUBLISH_RETRY_DELAY_MS * attempt);
+        }
+      }
+    }
+    HiLog.e(TAG, `publishMetadata exhausted retries kind=${this.mediaKind} assetId=${metadata.assetId}`);
+  }
+
+  /**
+   * fire-and-forget 写入元数据，不阻塞 ensureActive 调用方。
+   *
+   * @param metadata AVSession 元数据
+   */
+  private scheduleMetadataPublish(metadata: AVSessionManager.AVMetadata): void {
+    this.lastMetadata = metadata;
     if (!this.avSession) {
+      HiLog.w(TAG, `scheduleMetadataPublish skipped no avSession kind=${this.mediaKind}`);
       return;
     }
-    try {
-      await this.avSession.setAVMetadata(metadata);
-      HiLog.i(TAG, `publishMetadata kind=${this.mediaKind} assetId=${metadata.assetId} title=${metadata.title}`);
-    } catch (err) {
-      const error = err as BusinessError;
-      HiLog.e(TAG, `publishMetadata failed kind=${this.mediaKind} code=${error.code} message=${error.message}`);
-    }
+    void this.publishMetadata(metadata).catch((err: Error) => {
+      HiLog.e(TAG,
+        `scheduleMetadataPublish unhandled kind=${this.mediaKind} message=${err.message}`);
+    });
   }
 
   /**
@@ -276,6 +327,9 @@ export class PlaybackControlCenterBridge {
     this.unregisterCallbacks();
     this.ignoreRemotePauseUntilMs = 0;
     this.lastPlaybackState = AVSessionManager.PlaybackState.PLAYBACK_STATE_INITIAL;
+    this.lastMetadata = undefined;
+    this.lastLaunchOptions = undefined;
+    this.uiContextRetryCount = 0;
     if (!this.avSession) {
       return;
     }
@@ -283,6 +337,43 @@ export class PlaybackControlCenterBridge {
     this.avSession = undefined;
     AppStorage.setOrCreate(this.resolveStorageKey(), undefined);
     HiLog.i(TAG, `release kind=${this.mediaKind}`);
+  }
+
+  /**
+   * uiContext 未绑定时调度 ensureActive 重试；指数退避，UI_CONTEXT_RETRY_TIMES 上限。
+   */
+  private scheduleEnsureActiveRetry(
+    state: AVSessionManager.PlaybackState,
+    metadata: AVSessionManager.AVMetadata,
+    launchOptions?: PlaybackControlLaunchOptions
+  ): void {
+    if (this.uiContextRetryCount >= PlaybackControlConstants.UI_CONTEXT_RETRY_TIMES) {
+      HiLog.e(TAG,
+        `ensureActive retry exhausted kind=${this.mediaKind} count=${this.uiContextRetryCount}`);
+      return;
+    }
+    this.uiContextRetryCount++;
+    const attempt = this.uiContextRetryCount;
+    const delay = PlaybackControlConstants.UI_CONTEXT_RETRY_DELAY_MS * attempt;
+    HiLog.i(TAG,
+      `ensureActive scheduled retry kind=${this.mediaKind} attempt=${attempt}/${PlaybackControlConstants.UI_CONTEXT_RETRY_TIMES} delay=${delay}ms`);
+    setTimeout((): void => {
+      if (!this.uiContext) {
+        HiLog.w(TAG, `ensureActive retry still noContext kind=${this.mediaKind} attempt=${attempt}`);
+        this.scheduleEnsureActiveRetry(state, metadata, launchOptions);
+        return;
+      }
+      this.uiContextRetryCount = 0;
+      void this.ensureActive(state, metadata, launchOptions);
+    }, delay);
+  }
+
+  private delayMs(ms: number): Promise<void> {
+    return new Promise<void>((resolve: () => void) => {
+      setTimeout((): void => {
+        resolve();
+      }, ms);
+    });
   }
 
   private resolveStorageKey(): string {

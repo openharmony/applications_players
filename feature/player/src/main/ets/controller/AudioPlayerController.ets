@@ -45,6 +45,12 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
   private startTime: number = Date.now();
   private fileOpenCount: number = 1;
   private playingUri: string = '';
+  /** 正在切向的目标 URI：未清空 playingUri 前用于去重与 getActiveUri */
+  private pendingUri: string = '';
+  /** 单飞切源：仅保留最新待切 FileInfo */
+  private pendingSwitchFileInfo: FileInfo | null = null;
+  /** 是否已有切源循环在执行（保证同一时刻仅一条 stop/reset/open） */
+  private switchInFlight: boolean = false;
   /** 媒体库 asset.open 产生的 fd 需 asset.close，与 fs.open 区分 */
   private fdRelease: (() => Promise<void>) | null = null;
   /** 异步封面提取完成后通知 AudioPlayer 刷新 @State */
@@ -108,7 +114,14 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
    * @returns 音源 URI
    */
   public getActiveUri(): string {
+    if (this.pendingUri.length > 0) {
+      return this.pendingUri;
+    }
     return this.playingUri;
+  }
+
+  protected hasPendingTrackSwitch(): boolean {
+    return this.pendingSwitchFileInfo !== null;
   }
 
   /**
@@ -117,6 +130,9 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
    * @returns 是否活跃
    */
   public hasActivePlayback(): boolean {
+    if (this.pendingUri.length > 0 || this.switchInFlight) {
+      return true;
+    }
     if (this.playingUri.length === 0 || this.avPlayer === null) {
       return false;
     }
@@ -184,62 +200,103 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
     return this.audioPlayerPage.audioImage as image.PixelMap;
   }
 
-  /** 切换到新音频：重置 AVPlayer、清封面并加载新音源 */
+  /**
+   * 切换到新音频（单飞 + 最新优先）：
+   * 连点时只更新 pending，串行执行 stop/reset/open，最终只打开最后一首。
+   */
   async switchToTrack(fileInfo: FileInfo): Promise<void> {
-    if (fileInfo.uri.length === 0 || this.playingUri === fileInfo.uri) {
-      HiLog.i(TAG, `switchToTrack skipped playingUri=%{private}s target=%{private}s`,
-        this.playingUri, fileInfo.uri);
+    if (fileInfo.uri.length === 0) {
       return;
     }
-    // 重置停止标志（允许正常切歌）
+    if (fileInfo.uri === this.playingUri && this.pendingUri.length === 0 &&
+      this.pendingSwitchFileInfo === null) {
+      HiLog.i(TAG, `switchToTrack skipped playingUri=%{private}s`, this.playingUri);
+      return;
+    }
+    if (fileInfo.uri === this.pendingUri) {
+      HiLog.i(TAG, `switchToTrack skipped pendingUri=%{private}s`, this.pendingUri);
+      return;
+    }
     this._isStopped = false;
-    const generation = this.beginTrackSwitch();
-    HiLog.i(TAG, `switchToTrack gen=${generation}  fileInfo=${JSON.stringify({
-      fileName: fileInfo.fileName,
-      uri: fileInfo.uri,
-      mimeType: fileInfo.mimeType,
-      coverUri: fileInfo.coverUri,
-      thumbUri: fileInfo.thumbUri
-    })}`);
-
+    this.pendingSwitchFileInfo = fileInfo;
+    this.pendingUri = fileInfo.uri;
     this.fileInfo = fileInfo;
     this.setFileInfo(fileInfo, true);
-    await this.updateAvSessionMetadata();
-    this.fileOpenCount = 1;
+    this.resetProgressUiForSwitch(fileInfo);
     this.startTime = Date.now();
-    await this.releaseAudioImage();
-    if (this.audioPlayerPage !== null) {
-      this.audioPlayerPage.audioImage = null;
-    }
     if (this.playPage !== null) {
       this.playPage.loadingStatus = LoadingStatus.LOAD_STATE_LOADING;
     }
     this.storage?.setOrCreate<boolean>(LocalStorageParam.LOADING_END, false);
-    await this.prepareForTrackSwitch();
-    if (!this.isTrackSwitchCurrent(generation)) {
-      HiLog.i(TAG, `switchToTrack aborted stale gen=${generation}`);
+    HiLog.i(TAG, `switchToTrack enqueue from=%{private}s to=%{private}s inFlight=${this.switchInFlight}`,
+      this.playingUri, fileInfo.uri);
+    await this.runTrackSwitchLoop();
+  }
+
+  /**
+   * 串行消化 pendingSwitchFileInfo；循环内任意时刻新请求只覆盖 pending，不并发 prepare。
+   */
+  private async runTrackSwitchLoop(): Promise<void> {
+    if (this.switchInFlight) {
       return;
     }
-    // 再次检查是否已停止
-    if (this._isStopped) {
-      HiLog.i(TAG, `switchToTrack aborted after prepare: player is stopped`);
-      return;
+    this.switchInFlight = true;
+    this.markTrackSwitchBusy();
+    try {
+      while (this.pendingSwitchFileInfo !== null) {
+        const target = this.pendingSwitchFileInfo;
+        this.pendingSwitchFileInfo = null;
+        const generation = this.beginTrackSwitch();
+        this.pendingUri = target.uri;
+        this.fileInfo = target;
+        this.setFileInfo(target, true);
+        this.resetProgressUiForSwitch(target);
+        void this.updateAvSessionMetadata();
+        this.fileOpenCount = 1;
+        this.startTime = Date.now();
+        void this.releaseAudioImage();
+        if (this.audioPlayerPage !== null) {
+          this.audioPlayerPage.audioImage = null;
+        }
+        HiLog.i(TAG, `runTrackSwitchLoop start gen=${generation} uri=%{private}s`, target.uri);
+
+        await this.prepareForTrackSwitch();
+        if (!this.isTrackSwitchCurrent(generation)) {
+          HiLog.i(TAG, `runTrackSwitchLoop stale after prepare gen=${generation}`);
+          continue;
+        }
+        if (this._isStopped) {
+          HiLog.i(TAG, 'runTrackSwitchLoop aborted: player is stopped');
+          break;
+        }
+        if (this.pendingSwitchFileInfo !== null) {
+          HiLog.i(TAG, 'runTrackSwitchLoop skip open, newer pending exists');
+          continue;
+        }
+        await this.firstPlay(target.uri, generation);
+      }
+    } finally {
+      this.switchInFlight = false;
+      if (this.pendingSwitchFileInfo !== null) {
+        void this.runTrackSwitchLoop();
+      } else if (this.pendingUri.length > 0 && this.pendingUri === this.playingUri) {
+        this.pendingUri = '';
+      }
     }
-    this.firstPlay(fileInfo.uri, generation);
   }
 
   constructor() {
     super();
   }
 
-  firstPlay(uri: string, switchGeneration?: number): void {
+  async firstPlay(uri: string, switchGeneration?: number): Promise<void> {
     // 重置停止标志（允许正常播放）
     this._isStopped = false;
     this.startTime = Date.now();
     hiTraceMeter.startAsyncTrace(hiTraceMeter.HiTraceOutputLevel.COMMERCIAL,
       'AUDIO_PARSE_FILE', TaskId.PARSE_FILE, 'PARSE_FILE');
     HiLog.i(TAG, `uri: %{private}s start read file.`, uri);
-    this.openAndPlay(uri, switchGeneration);
+    await this.openAndPlay(uri, switchGeneration);
   }
 
   /**
@@ -283,6 +340,11 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
       HiLog.i(TAG, `openAndPlay aborted: player is stopped`);
       return;
     }
+    if (this.isSwitchTargetStale(uri, switchGeneration)) {
+      HiLog.i(TAG, `openAndPlay aborted before open uri=%{private}s`, uri);
+      this.finishParseFileTrace();
+      return;
+    }
     const beforeOpen: MediaSourceAccessState = MediaPlaybackSourceHelper.checkAccess(
       uri, this.fileInfo.filePath, this.fileInfo.mediaPath);
     HiLog.i(TAG, `openAndPlay precheck state=${beforeOpen} fileName=${this.fileInfo.fileName}`);
@@ -293,11 +355,12 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
     }
     const opened: MediaPlaybackOpenResult | null =
       await MediaPlaybackFileOpener.openReadOnly(uri, this.fileInfo.fileName);
-    if (switchGeneration !== undefined && !this.isTrackSwitchCurrent(switchGeneration)) {
+    if (this.isSwitchTargetStale(uri, switchGeneration)) {
       if (opened) {
         await opened.release();
       }
-      HiLog.i(TAG, `openAndPlay aborted stale gen=${switchGeneration}`);
+      HiLog.i(TAG, `openAndPlay aborted stale uri=%{private}s gen=${switchGeneration}`, uri);
+      this.finishParseFileTrace();
       return;
     }
     // 再次检查是否已停止（文件打开是异步操作，可能在等待期间被停止）
@@ -306,6 +369,7 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
         await opened.release();
       }
       HiLog.i(TAG, `openAndPlay aborted after open: player is stopped`);
+      this.finishParseFileTrace();
       return;
     }
     if (opened) {
@@ -317,6 +381,27 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
       uri, this.fileInfo.filePath, this.fileInfo.mediaPath, beforeOpen);
     showMediaSourceFailureToast(failureState);
     this.failOpenSource();
+  }
+
+  private finishParseFileTrace(): void {
+    hiTraceMeter.finishAsyncTrace(hiTraceMeter.HiTraceOutputLevel.COMMERCIAL, 'AUDIO_PARSE_FILE',
+      TaskId.PARSE_FILE);
+  }
+
+  /**
+   * 目标是否已过期：代际落后，或 pendingUri 已指向更新的曲目 / 有更新的 pending 排队
+   */
+  private isSwitchTargetStale(uri: string, switchGeneration?: number): boolean {
+    if (switchGeneration !== undefined && !this.isTrackSwitchCurrent(switchGeneration)) {
+      return true;
+    }
+    if (this.pendingSwitchFileInfo !== null && this.pendingSwitchFileInfo.uri !== uri) {
+      return true;
+    }
+    if (this.pendingUri.length > 0 && this.pendingUri !== uri) {
+      return true;
+    }
+    return false;
   }
 
   /** 打开音源失败：更新 loading 并走 error 上报 */
@@ -343,22 +428,17 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
     if (this._isStopped) {
       await opened.release();
       HiLog.i(TAG, `playWithFd aborted: player is stopped`);
+      this.finishParseFileTrace();
       return;
     }
-    await this.extractAlbumCover(uri, opened.fd, opened.size);
-    if (switchGeneration !== undefined && !this.isTrackSwitchCurrent(switchGeneration)) {
+    if (this.isSwitchTargetStale(uri, switchGeneration)) {
       await opened.release();
+      this.finishParseFileTrace();
       return;
     }
-    // 再次检查是否已停止
-    if (this._isStopped) {
-      await opened.release();
-      HiLog.i(TAG, `playWithFd aborted after cover: player is stopped`);
-      return;
-    }
-    const ready = await this.ensureAvPlayer();
-    if (!ready) {
-      HiLog.e(TAG, `playWithFd ensureAvPlayer failed fileName=${this.fileInfo.fileName}`);
+    const idle = await this.ensureIdleForSetSource();
+    if (!idle) {
+      HiLog.e(TAG, `playWithFd ensureIdle failed fileName=${this.fileInfo.fileName}`);
       await opened.release();
       if (this.playPage !== null) {
         this.playPage.loadingStatus = LoadingStatus.LOAD_STATE_FAILED;
@@ -366,20 +446,26 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
       this.error();
       return;
     }
-    if (switchGeneration !== undefined && !this.isTrackSwitchCurrent(switchGeneration)) {
+    if (this.isSwitchTargetStale(uri, switchGeneration)) {
       await opened.release();
+      this.finishParseFileTrace();
       return;
     }
-    // 最终检查是否已停止
     if (this._isStopped) {
       await opened.release();
       HiLog.i(TAG, `playWithFd aborted before bind: player is stopped`);
+      this.finishParseFileTrace();
       return;
     }
     this.playingUri = uri;
     this.fdRelease = opened.release;
     this.setFdSrc(opened.fd);
+    this.markTrackSourceBound();
+    if (this.pendingSwitchFileInfo === null && this.pendingUri === uri) {
+      this.pendingUri = '';
+    }
     HiLog.i(TAG, `playWithFd bound playingUri=%{private}s fd=${opened.fd}`, uri);
+    void this.extractAlbumCover(uri);
   }
 
   /**
@@ -425,6 +511,17 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
       if (avMetadataExtractor) {
         avMetadataExtractor.release();
       }
+    }
+    if (this.isSwitchTargetStale(uri) || this._isStopped) {
+      if (pixelMap !== undefined && pixelMap !== null) {
+        try {
+          await pixelMap.release();
+        } catch (releaseErr) {
+          const releaseError = releaseErr as BusinessError;
+          HiLog.w(TAG, `extractAlbumCover stale pixelMap release failed message=${releaseError.message}`);
+        }
+      }
+      return;
     }
     if (pixelMap !== undefined && pixelMap !== null && this.audioPlayerPage !== null) {
       this.audioPlayerPage.audioImage = pixelMap;
@@ -473,6 +570,10 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
    */
   async release(): Promise<void> {
     this._isStopped = true;
+    this.pendingUri = '';
+    this.pendingSwitchFileInfo = null;
+    this.switchInFlight = false;
+    this.markTrackSwitchSettled();
     HiLog.i(TAG, `release: set _isStopped=true`);
     await super.release();
   }

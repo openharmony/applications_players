@@ -181,8 +181,9 @@ export class ArchivePlaybackExtractor {
   }
 
   private static openExtractedFile(path: string, fileName: string): MediaPlaybackOpenResult | null {
+    let file: fs.File | undefined = undefined;
     try {
-      const file = fs.openSync(path, fs.OpenMode.READ_ONLY);
+      file = fs.openSync(path, fs.OpenMode.READ_ONLY);
       const stat = fs.statSync(file.fd);
       const fd = file.fd;
       const result: MediaPlaybackOpenResult = {
@@ -197,6 +198,10 @@ export class ArchivePlaybackExtractor {
     } catch (error) {
       HiLog.w(TAG, `openExtractedFile failed fileName=${fileName}`);
       return null;
+    } finally {
+      if (file) {
+        fs.closeSync(file);
+      }
     }
   }
 

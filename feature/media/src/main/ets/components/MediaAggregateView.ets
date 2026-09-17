@@ -878,7 +878,8 @@ export struct MediaAggregateView {
   buildListItems() {
     LazyForEach(this.dataSource, (media: FileInfo, _index: number) => {
       this.buildMediaListItem(media, !this.isSelectionMode)
-    }, (media: FileInfo) => media.uri + (MediaItemDisplayUtil.hasCustomThumbnail(media) ? LAZY_KEY_VERSION_CUSTOM_THUMBNAIL : LAZY_KEY_VERSION_PLACEHOLDER_THUMBNAIL))
+    }, (media: FileInfo) => media.uri + (MediaItemDisplayUtil.hasCustomThumbnail(media)
+      ? LAZY_KEY_VERSION_CUSTOM_THUMBNAIL : LAZY_KEY_VERSION_PLACEHOLDER_THUMBNAIL))
   }
 
   /** 多选列表：容器级 Pan 涂选 */

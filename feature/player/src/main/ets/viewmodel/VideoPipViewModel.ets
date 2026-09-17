@@ -393,7 +393,7 @@ export class VideoPipViewModel implements IVideoPipSystemLockDelegate {
     const size = this.resolveContentSize();
     // controlGroups 为空时系统只显示强制播控（播放/暂停），上一曲/下一曲会缺失。
     // VIDEO_PREVIOUS_NEXT 与 FAST_FORWARD_BACKWARD 互斥，视频页核心簇为上一/下一，选前者。
-    const controlGroups: Array<PiPWindow.PiPControlGroup> = [
+    const controlGroups: PiPWindow.PiPControlGroup[] = [
       PiPWindow.VideoPlayControlGroup.VIDEO_PREVIOUS_NEXT
     ];
     const config: PiPWindow.PiPConfiguration = {

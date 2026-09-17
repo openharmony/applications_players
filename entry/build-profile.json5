@@ -20,9 +20,12 @@
   "targets": [
     {
       "name": "default",
+      "output": {
+        "artifactName": "Players"
+      }
     },
     {
-      "name": "ohosTest",
+      "name": "ohosTest"
     }
   ]
 }

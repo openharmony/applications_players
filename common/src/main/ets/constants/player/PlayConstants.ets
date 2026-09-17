@@ -48,6 +48,11 @@ export class PlayConstants {
   static readonly PLAY_PROGRESS_TOTAL_TIME = '00:00';
   static readonly PLAY_PROGRESS_PROGRESS_VAL = 0;
   static readonly PLAY_PROGRESS_STEP = 1;
+  /**
+   * 视频进度条步进：长视频（30~120 分钟）1% 即 18~72 秒，精度差会让用户感觉"不跟手";
+   * 视频 0.1%（精度提升 10 倍，跟手连续），音频保持 1%（分钟级精度够用）。
+   */
+  static readonly PLAY_PROGRESS_STEP_VIDEO = 0.1;
   static readonly PLAY_PROGRESS_PROGRESS_HIDE_TIME = 2000;
   static readonly PLAY_PROGRESS_VIDEO_HIDE_TIME = 4000;
   static readonly PLAY_PROGRESS_PLAY_SLIDER_LAYOUT_WEIGHT = 1;
@@ -108,11 +113,36 @@ export class PlayConstants {
   /**
    * 进度条 remap 相对片长的最大比例。
    * 短视频仅片头关键帧时，SEEK_PREV_SYNC 会落到 0，若仍按松手点映射，
-   * 会出现画面在开头、滑块停在 28% 并被拉满整段。
+   * 会出现画面在开头、滑块停在 28% 并被拉满整段（log.txt 视频MP4格式.mp4）。
    */
   public static readonly SLIDER_SEEK_REMAP_MAX_DURATION_RATIO = 0.12;
   /** 进度条 remap 绝对上限（毫秒），覆盖常见 GOP，避免长视频 12% 过大 */
   public static readonly SLIDER_SEEK_REMAP_MAX_GAP_MS = 4000;
+  /**
+   * 距结尾该范围内若 EOS 早于上报时长，fillProgressToEnd 修正总时长。
+   * 不再用于放行大跨度 timeUpdate（会把进度条提前拉满，而当前时间未到）。
+   */
+  public static readonly TIME_UPDATE_NEAR_END_MS = 3000;
+  /** 进度条最小可见步进（百分比），避免按整百分位更新导致长音频卡顿感 */
+  public static readonly PROGRESS_UPDATE_MIN_DELTA = 0.05;
+  /** AMR 上报时长相对文件大小估算上限的膨胀倍数，超过则视为不可信 */
+  public static readonly AMR_DURATION_INFLATE_RATIO = 1.5;
+  /**
+   * demuxer 按时长码率估算时常比 mode7 典型时长略长（本例 5:29 vs 5:19）。
+   * 超过该差值则改用 typical，避免总时长虚高 + seek 落到错误偏移。
+   */
+  public static readonly AMR_DURATION_OVER_TYPICAL_MS = 3000;
+  /**
+   * mp3：入库精确时长（列表页帧头扫描）比 demuxer 估算长过该倍数时，
+   * 播放页采用精确时长。VBR 无 Xing 头文件首帧码率高于全曲平均码率时，
+   * demuxer 按首帧码率估算会明显偏短，导致进度条到顶而音频未播完。
+   * CBR/带 Xing 文件两者几乎一致，不会触发。
+   */
+  public static readonly MP3_META_DURATION_PREFER_RATIO = 1.05;
+  /** AMR 帧对齐：mode7 每帧约 32 字节（含 TOC） */
+  public static readonly AMR_NB_MODE7_FRAME_BYTES = 32;
+  /** AMR 文件头 "#!AMR\\n" */
+  public static readonly AMR_HEADER_BYTES = 6;
 
   public static readonly VIDEO_SHOW_LOADING_TIMEOUT = 300;
   public static readonly MAX_VIDEO_SHOW_LOADING_TIME = 5000;

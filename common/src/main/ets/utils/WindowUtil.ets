@@ -50,12 +50,9 @@ const PLAYER_LIGHT_BAR_PROPERTIES: window.SystemBarProperties = {
   navigationBarContentColor: '#FF000000',
 };
 
-/** 播放器页系统栏：随应用深浅色模式切换 */
+/** 播放器页系统栏：始终使用深色系统栏，确保播放器页面状态栏/导航栏与深色背景协调 */
 function buildPlayerSystemBarProperties(): window.SystemBarProperties {
-  if (AppThemeModeHelper.isDarkMode()) {
-    return PLAYER_DARK_BAR_PROPERTIES;
-  }
-  return PLAYER_LIGHT_BAR_PROPERTIES;
+  return PLAYER_DARK_BAR_PROPERTIES;
 }
 
 /** 应用主壳系统栏：状态栏透明，页面背景由 Index expandSafeArea 绘制；导航栏仍与页面同色 */
@@ -336,6 +333,14 @@ export default class WindowUtil {
       return;
     }
     WindowUtil.enablePlayerDarkSystemBars(windowClass);
+  }
+
+  /** 强制播放器使用深色系统栏（不跟随应用深浅色模式） */
+  public static applyForceDarkSystemBars(windowClass: window.Window): void {
+    if (!windowClass) {
+      return;
+    }
+    WindowUtil.setWindowSystemBarProperties(windowClass, PLAYER_DARK_BAR_PROPERTIES);
   }
 
   private static lastSyncedStatusBarHeightVp: number = -1;

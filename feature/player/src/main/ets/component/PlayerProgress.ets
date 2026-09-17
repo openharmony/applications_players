@@ -23,6 +23,7 @@ import ToolbarItem from '@ohos/common/src/main/ets/model/ToolbarItem';
 import DeviceConfigUtil from '@ohos/common/src/main/ets/utils/DeviceConfigUtil';
 import { HiLog } from '@ohos/common/src/main/ets/utils/HiLog';
 import { MediaFormatUtil } from '@ohos/common/src/main/ets/utils/MediaFormatUtil';
+import { FontScaleUtil } from '@ohos/common/src/main/ets/utils/FontScaleUtil';
 
 import { PlayerUiConstants } from '../constants/PlayerUiConstants';
 import { PlaybackQueueSheetConstants, PlaybackQueueSheetTab } from '../constants/PlaybackQueueSheetConstants';
@@ -308,12 +309,30 @@ export struct PlayerProgress {
    * @returns 估算码率，无法估算时为 0
    */
   private estimateAudioBitrateBps(): number {
-    const fileSize = this.fileInfo?.fileSize ?? 0;
-    const durationMs = this.fileInfo?.duration ?? 0;
+    const fileSize = this.resolveMetaFileSize();
+    const durationMs = this.resolveMetaDurationMs();
     if (fileSize <= 0 || durationMs <= 0) {
       return 0;
     }
     return Math.round(fileSize * 8000 / durationMs);
+  }
+
+  /** 元信息文件大小：fileInfo 优先，冷启动缺省时回退已 open 大小 */
+  private resolveMetaFileSize(): number {
+    const fromInfo = this.fileInfo?.fileSize ?? 0;
+    if (fromInfo > 0) {
+      return fromInfo;
+    }
+    return this.avPlayerController.getOpenedFileSize();
+  }
+
+  /** 元信息时长：fileInfo 优先，回退播放器进度时长 */
+  private resolveMetaDurationMs(): number {
+    const fromInfo = this.fileInfo?.duration ?? 0;
+    if (fromInfo > 0) {
+      return fromInfo;
+    }
+    return this.avPlayerController.getProgressDurationMs();
   }
 
   private getProgressTimeTextColor(): ResourceColor {
@@ -360,10 +379,15 @@ export struct PlayerProgress {
   }
 
   private buildAudioMetaText(): string {
-    const fileSize = this.fileInfo?.fileSize ?? 0;
+    const fileSize = this.resolveMetaFileSize();
     const sizeText = MediaFormatUtil.formatFileSizeDecimal(fileSize);
-    const bitrateText = MediaFormatUtil.formatBitrate(this.estimateAudioBitrateBps());
-    return `${this.getString($r('app.string.player_media_type_audio'))} · ${sizeText} · ${bitrateText}`;
+    const parts: string[] = [this.getString($r('app.string.player_media_type_audio')), sizeText];
+    // 码率不可估（大小或时长缺失，冷启动首帧常见）时不展示 '-- kbps'，避免误读为文件大小异常
+    const bitrateBps = this.estimateAudioBitrateBps();
+    if (bitrateBps > 0) {
+      parts.push(MediaFormatUtil.formatBitrate(bitrateBps));
+    }
+    return parts.join(' · ');
   }
 
   /**
@@ -421,14 +445,14 @@ export struct PlayerProgress {
   AudioFileInfoSection() {
     Column({ space: 4 }) {
       Text(this.getAudioDisplayTitle())
-        .fontSize(PlayerUiConstants.TITLE_FONT_SIZE)
+        .fontSize(FontScaleUtil.chromeSize(PlayerUiConstants.TITLE_FONT_SIZE))
         .fontColor(this.getTitleTextColor())
-        .fontWeight(FontWeight.Bold)
+        .fontWeight(FontWeight.Medium)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
 
       Text(this.buildAudioMetaText())
-        .fontSize(PlayerUiConstants.META_FONT_SIZE)
+        .fontSize(FontScaleUtil.chromeSize(PlayerUiConstants.META_FONT_SIZE))
         .fontColor(this.getTimeTextColor())
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -445,16 +469,16 @@ export struct PlayerProgress {
 
   @Builder
   VideoFileInfoSection() {
-    Column({ space: 4 }) {
+    Column({ space: 2 }) {
       Text(this.fileInfo?.fileName ?? '')
-        .fontSize(PlayerUiConstants.TITLE_FONT_SIZE)
+        .fontSize(FontScaleUtil.chromeSize(PlayerUiConstants.TITLE_FONT_SIZE))
         .fontColor(this.getTitleTextColor())
         .fontWeight(FontWeight.Medium)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
 
       Text(this.buildVideoMetaText())
-        .fontSize(PlayerUiConstants.META_FONT_SIZE)
+        .fontSize(FontScaleUtil.chromeSize(PlayerUiConstants.META_FONT_SIZE))
         .fontColor(this.getTimeTextColor())
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -464,7 +488,7 @@ export struct PlayerProgress {
     .padding({
       left: this.getContentPaddingH(),
       right: this.getContentPaddingH(),
-      top: 8,
+      top: 4,
       bottom: PlayerUiConstants.FILE_INFO_BOTTOM_GAP,
     })
   }
@@ -485,7 +509,9 @@ export struct PlayerProgress {
       value: $$this.progressVal,
       min: 0,
       max: 100,
-      step: PlayConstants.PLAY_PROGRESS_STEP,
+      // 视频时长通常 30~120 分钟,step=1 即 18~72 秒一步,精度差让用户感觉"不跟手";
+      // 视频改 0.1(精度提升 10 倍,跟手更连续),音频保持 1(整分钟级别的精度足够)。
+      step: this.isAudio ? PlayConstants.PLAY_PROGRESS_STEP : PlayConstants.PLAY_PROGRESS_STEP_VIDEO,
       style: SliderStyle.OutSet
     })
       .blockColor(this.getBlockColor())
@@ -513,13 +539,13 @@ export struct PlayerProgress {
   LandscapeVideoProgressSection() {
     Row({ space: 10 }) {
       Text(this.currentTime)
-        .fontSize(PlayerUiConstants.TIME_FONT_SIZE)
+        .fontSize(FontScaleUtil.chromeSize(PlayerUiConstants.TIME_FONT_SIZE))
         .fontColor(this.getProgressTimeTextColor())
 
       this.ProgressSliderControl()
 
       Text(this.totalTime)
-        .fontSize(PlayerUiConstants.TIME_FONT_SIZE)
+        .fontSize(FontScaleUtil.chromeSize(PlayerUiConstants.TIME_FONT_SIZE))
         .fontColor(this.getProgressTimeTextColor())
     }
     .width('100%')
@@ -534,7 +560,8 @@ export struct PlayerProgress {
         value: $$this.progressVal,
         min: 0,
         max: 100,
-        step: PlayConstants.PLAY_PROGRESS_STEP,
+        // 视频提高精度到 0.1%（长视频拖动跟手更连续），音频保持 1%。
+        step: this.isAudio ? PlayConstants.PLAY_PROGRESS_STEP : PlayConstants.PLAY_PROGRESS_STEP_VIDEO,
         style: SliderStyle.OutSet
       })
         .blockColor(this.getBlockColor())
@@ -558,13 +585,13 @@ export struct PlayerProgress {
 
       Row() {
         Text(this.currentTime)
-          .fontSize(PlayerUiConstants.TIME_FONT_SIZE)
+          .fontSize(FontScaleUtil.chromeSize(PlayerUiConstants.TIME_FONT_SIZE))
           .fontColor(this.getProgressTimeTextColor())
 
         Blank()
 
         Text(this.totalTime)
-          .fontSize(PlayerUiConstants.TIME_FONT_SIZE)
+          .fontSize(FontScaleUtil.chromeSize(PlayerUiConstants.TIME_FONT_SIZE))
           .fontColor(this.getProgressTimeTextColor())
       }
       .width('100%')
@@ -579,7 +606,7 @@ export struct PlayerProgress {
     if (this.isVideoFullscreen) {
       Button({ type: ButtonType.Circle, stateEffect: true }) {
         SymbolGlyph(this.playIcon)
-          .fontSize(PlayerUiConstants.PLAY_ICON_SIZE + 4)
+          .fontSize(FontScaleUtil.chromeSize(PlayerUiConstants.PLAY_ICON_SIZE + 4))
           .fontWeight(FontWeight.Medium)
           .fontColor([$r('app.color.player_control_icon')])
       }
@@ -593,7 +620,7 @@ export struct PlayerProgress {
     } else {
       Button({ type: ButtonType.Circle, stateEffect: true }) {
         SymbolGlyph(this.playIcon)
-          .fontSize(PlayerUiConstants.PLAY_ICON_SIZE)
+          .fontSize(FontScaleUtil.chromeSize(PlayerUiConstants.PLAY_ICON_SIZE))
           .fontWeight(FontWeight.Medium)
           .fontColor([$r('app.color.player_play_button_icon')])
       }
@@ -618,7 +645,7 @@ export struct PlayerProgress {
   LoopModeButton() {
     Button() {
       SymbolGlyph(this.loopModeIcon)
-        .fontSize(PlayerUiConstants.ACCESSORY_ICON_SIZE)
+        .fontSize(FontScaleUtil.chromeSize(PlayerUiConstants.ACCESSORY_ICON_SIZE))
         .fontWeight(FontWeight.Medium)
         .fontColor([this.getPlayStyleButtonIconColor()])
     }
@@ -638,7 +665,7 @@ export struct PlayerProgress {
   AccessoryButton(icon: Resource, onClick: () => void) {
     Button() {
       SymbolGlyph(icon)
-        .fontSize(PlayerUiConstants.ACCESSORY_ICON_SIZE)
+        .fontSize(FontScaleUtil.chromeSize(PlayerUiConstants.ACCESSORY_ICON_SIZE))
         .fontWeight(FontWeight.Medium)
         .fontColor([this.getPlayStyleButtonIconColor()])
     }
@@ -654,7 +681,7 @@ export struct PlayerProgress {
   SkipButton(icon: Resource, onClick: () => void) {
     Button({ type: ButtonType.Circle, stateEffect: true }) {
       SymbolGlyph(icon)
-        .fontSize(PlayerUiConstants.SKIP_ICON_SIZE)
+        .fontSize(FontScaleUtil.chromeSize(PlayerUiConstants.SKIP_ICON_SIZE))
         .fontWeight(FontWeight.Medium)
         .fontColor([this.getPlayStyleButtonIconColor()])
     }
@@ -662,6 +689,7 @@ export struct PlayerProgress {
     .backgroundColor(this.getPlayStyleButtonBackground())
     .width(PlayerUiConstants.SKIP_BUTTON_SIZE)
     .height(PlayerUiConstants.SKIP_BUTTON_SIZE)
+    .flexShrink(0)
     .onClick(onClick)
   }
 
@@ -682,7 +710,7 @@ export struct PlayerProgress {
   VolumeMuteButton() {
     Button({ type: ButtonType.Circle, stateEffect: true }) {
       SymbolGlyph(this.volumeButtonIcon)
-        .fontSize(PlayerUiConstants.ACCESSORY_ICON_SIZE)
+        .fontSize(FontScaleUtil.chromeSize(PlayerUiConstants.ACCESSORY_ICON_SIZE))
         .fontWeight(FontWeight.Medium)
         .fontColor([this.getPlayStyleButtonIconColor()])
     }
@@ -717,23 +745,24 @@ export struct PlayerProgress {
     return $r('app.string.speed');
   }
 
-  /** 倍速文字按钮（无胶囊底色，贴合设计稿） */
+  /** 倍速文字按钮（固定 vp 宽高，视频「倍速」/音频「1.0X」均不越界） */
   @Builder
   SpeedButton() {
     Button({ type: ButtonType.Normal }) {
       Text(this.getSpeedButtonLabel())
-        .fontSize(this.isAudio ? 16 : PlayerUiConstants.SPEED_FONT_SIZE + 2)
+        .fontSize(FontScaleUtil.chromeSize(PlayerUiConstants.SPEED_FONT_SIZE))
         .fontColor(this.getPlayStyleButtonIconColor())
         .fontWeight(FontWeight.Medium)
         .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .textOverflow({ overflow: TextOverflow.Clip })
         .textAlign(TextAlign.Center)
     }
     .backgroundColor(this.getSpeedChipBackground())
-    .constraintSize({ minWidth: PlayerUiConstants.SPEED_CHIP_WIDTH })
+    .width(this.isAudio ? PlayerUiConstants.SPEED_CHIP_WIDTH + 8 : PlayerUiConstants.SPEED_CHIP_WIDTH)
     .height(PlayerUiConstants.SPEED_CHIP_HEIGHT)
     .padding({ left: PlayerUiConstants.SPEED_CHIP_PADDING_H, right: PlayerUiConstants.SPEED_CHIP_PADDING_H })
     .borderRadius(PlayerUiConstants.SPEED_CHIP_RADIUS)
+    .flexShrink(0)
     .bindPopup($$this.showSpeedMenu, {
       builder: (): void => {
         this.SpeedMenuPopup();
@@ -759,7 +788,7 @@ export struct PlayerProgress {
   PlaylistButton() {
     Button() {
       SymbolGlyph(Constants.APP_BAR_ICON_PLAYLIST)
-        .fontSize(PlayerUiConstants.ACCESSORY_ICON_SIZE)
+        .fontSize(FontScaleUtil.chromeSize(PlayerUiConstants.ACCESSORY_ICON_SIZE))
         .fontWeight(FontWeight.Medium)
         .fontColor([this.getPlayStyleButtonIconColor()])
     }
@@ -815,7 +844,7 @@ export struct PlayerProgress {
   SeekButton(icon: Resource, onClick: () => void) {
     Button({ type: ButtonType.Circle, stateEffect: true }) {
       SymbolGlyph(icon)
-        .fontSize(PlayerUiConstants.SEEK_ICON_SIZE)
+        .fontSize(FontScaleUtil.chromeSize(PlayerUiConstants.SEEK_ICON_SIZE))
         .fontWeight(FontWeight.Medium)
         .fontColor([this.getPlayStyleButtonIconColor()])
     }
@@ -823,6 +852,7 @@ export struct PlayerProgress {
     .backgroundColor(this.getPlayStyleButtonBackground())
     .width(PlayerUiConstants.SEEK_BUTTON_SIZE)
     .height(PlayerUiConstants.SEEK_BUTTON_SIZE)
+    .flexShrink(0)
     .onClick(onClick)
   }
 
@@ -876,22 +906,34 @@ export struct PlayerProgress {
     .flexShrink(0)
   }
 
+  /**
+   * 音频播控：左右槽等宽 + clip，中间 transport 不压缩，避免倍速/列表与下一曲叠画。
+   */
   @Builder
   AudioControlRow() {
-    Stack({ alignContent: Alignment.Center }) {
+    Row() {
       Row() {
         this.LoopModeButton()
-        Blank()
-        this.RightControlCluster()
       }
-      .width('100%')
-      .padding({ left: this.getContentPaddingH(), right: this.getContentPaddingH() })
+      .layoutWeight(1)
+      .justifyContent(FlexAlign.Start)
       .alignItems(VerticalAlign.Center)
+      .clip(true)
 
       this.TransportCluster()
+
+      Row() {
+        this.RightControlCluster()
+      }
+      .layoutWeight(1)
+      .justifyContent(FlexAlign.End)
+      .alignItems(VerticalAlign.Center)
+      .clip(true)
     }
     .width('100%')
-    .height(PlayerUiConstants.PLAY_BUTTON_SIZE)
+    .constraintSize({ minHeight: PlayerUiConstants.PLAY_BUTTON_SIZE })
+    .padding({ left: this.getContentPaddingH(), right: this.getContentPaddingH() })
+    .alignItems(VerticalAlign.Center)
     .margin({ top: PlayerUiConstants.CONTROL_ROW_TOP_MARGIN })
   }
 
@@ -915,7 +957,7 @@ export struct PlayerProgress {
       .alignItems(VerticalAlign.Center)
       .margin({ top: PlayerUiConstants.CONTROL_ROW_TOP_MARGIN })
     } else {
-      // 竖屏：两侧 layoutWeight 等宽，左贴左、右贴右，中间播控自然居中，左右镜像对齐
+      // 竖屏：中间播控固定不压缩；两侧槽 clip，防止 ±15 与上一曲/下一曲在窄宽下叠画
       Row() {
         Row({ space: PlayerUiConstants.VIDEO_TRANSPORT_CLUSTER_GAP }) {
           this.VolumeMuteButton()
@@ -926,7 +968,7 @@ export struct PlayerProgress {
         .layoutWeight(1)
         .justifyContent(FlexAlign.Start)
         .alignItems(VerticalAlign.Center)
-        .padding({ right: PlayerUiConstants.VIDEO_TRANSPORT_CLUSTER_GAP })
+        .clip(true)
 
         this.CoreTransportCluster()
 
@@ -939,10 +981,10 @@ export struct PlayerProgress {
         .layoutWeight(1)
         .justifyContent(FlexAlign.End)
         .alignItems(VerticalAlign.Center)
-        .padding({ left: PlayerUiConstants.VIDEO_TRANSPORT_CLUSTER_GAP })
+        .clip(true)
       }
       .width('100%')
-      .height(PlayerUiConstants.PLAY_BUTTON_SIZE)
+      .constraintSize({ minHeight: PlayerUiConstants.PLAY_BUTTON_SIZE })
       .padding({ left: this.getContentPaddingH(), right: this.getContentPaddingH() })
       .alignItems(VerticalAlign.Center)
       .margin({ top: PlayerUiConstants.CONTROL_ROW_TOP_MARGIN })

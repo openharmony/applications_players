@@ -19,6 +19,7 @@ import { HiLog } from '../utils/HiLog';
 import { MediaPlaybackFileOpener } from '../utils/MediaPlaybackFileOpener';
 import { MediaMetadataResolver } from '../utils/MediaMetadataResolver';
 import { SupportedMediaFormats } from '../constants/media/SupportedMediaFormats';
+import { ThumbnailConfig } from '../thumbnail/ThumbnailConfig';
 import media from '@ohos.multimedia.media';
 import image from '@ohos.multimedia.image';
 
@@ -139,8 +140,8 @@ async function retryVideoThumbnail(fileInfo: FileInfo): Promise<boolean> {
     generator.fdSrc = fdSrc;
     const options = media.AVImageQueryOptions.AV_IMAGE_QUERY_NEXT_SYNC;
     const param: media.PixelMapParams = {
-      width: 320,
-      height: 320
+      width: ThumbnailConfig.VIDEO_THUMB_WIDTH,
+      height: ThumbnailConfig.VIDEO_THUMB_HEIGHT
     };
 
     let pixelMap: image.PixelMap | undefined = undefined;

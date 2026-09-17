@@ -45,18 +45,20 @@ export interface KeywordMatchResult {
 }
 
 /**
- * 即时搜索匹配引擎（统一前缀匹配）：
- * - 字面：文件名以关键词开头
- * - 字符单元：从文件名开头起，用首字母/全拼前缀/英文字母递进消耗查询
- * 高亮区间始终从 0 开始，随输入增减精确伸缩。
+ * 即时搜索匹配引擎（包含匹配）：
+ * - 字面：文件名等于 / 开头 / 任意位置包含关键词
+ * - 字符单元：从任意字符起，用首字母/全拼前缀/英文字母递进消耗查询
+ * 高亮区间锁定命中的原文位置，随输入增减精确伸缩。
  */
 export class SearchMatchEngine {
   public static readonly SCORE_EXACT: number = 100;
   public static readonly SCORE_LITERAL_PREFIX: number = 80;
   public static readonly SCORE_UNIT_PREFIX: number = 72;
+  public static readonly SCORE_LITERAL_CONTAINS: number = 50;
+  public static readonly SCORE_UNIT_CONTAINS: number = 45;
 
   /**
-   * 对文件名（可含后缀）做前缀匹配，返回得分与高亮区间。
+   * 对文件名（可含后缀）做包含匹配，返回得分与高亮区间。
    */
   public static matchFileName(fileName: string, keyword: string): KeywordMatchResult {
     if (!fileName || !keyword) {
@@ -67,7 +69,7 @@ export class SearchMatchEngine {
   }
 
   /**
-   * 对任意文本做前缀匹配（仅从开头匹配，不做包含/后缀）
+   * 对任意文本做包含匹配（开头优先，其次任意位置）
    */
   public static matchText(text: string, keyword: string): KeywordMatchResult {
     if (!text || !keyword) {
@@ -77,25 +79,29 @@ export class SearchMatchEngine {
     const lowerKeyword: string = keyword.toLowerCase();
     const lowerText: string = text.toLowerCase();
 
-    // 1) 字面前缀（含精确）
+    // 1) 字面：精确 / 前缀 / 包含
     const literal: KeywordMatchResult | null =
-      SearchMatchEngine.matchLiteralPrefix(text, lowerText, lowerKeyword);
-    if (literal !== null) {
+      SearchMatchEngine.matchLiteral(text, lowerText, lowerKeyword);
+    if (literal !== null && literal.score >= SearchMatchEngine.SCORE_LITERAL_PREFIX) {
       return literal;
     }
 
-    // 2) 字符单元前缀：仅从文本开头递进匹配
+    // 2) 字符单元：优先从开头匹配（拼音/首字母），再扫中间
     const unitMatch: KeywordMatchResult | null =
-      SearchMatchEngine.matchUnitPrefix(text, lowerKeyword);
+      SearchMatchEngine.matchUnit(text, lowerKeyword);
     if (unitMatch !== null) {
       return unitMatch;
+    }
+
+    if (literal !== null) {
+      return literal;
     }
 
     return SearchMatchEngine.emptyResult();
   }
 
   /**
-   * 收集多个关键词在文本上的合并高亮区间（各自均为前缀匹配）
+   * 收集多个关键词在文本上的合并高亮区间（各自均为包含匹配）
    */
   public static collectHighlightRanges(text: string, keywords: string[]): HighlightRange[] {
     if (!text || keywords.length === 0) {
@@ -122,8 +128,8 @@ export class SearchMatchEngine {
     };
   }
 
-  /** 字面前缀：text 以 keyword 开头 */
-  private static matchLiteralPrefix(text: string, lowerText: string, lowerKeyword: string): KeywordMatchResult | null {
+  /** 字面：精确 > 前缀 > 任意位置包含 */
+  private static matchLiteral(text: string, lowerText: string, lowerKeyword: string): KeywordMatchResult | null {
     if (lowerText === lowerKeyword) {
       return {
         matched: true,
@@ -138,36 +144,51 @@ export class SearchMatchEngine {
         ranges: [{ start: 0, end: lowerKeyword.length }]
       };
     }
+    const containIndex: number = lowerText.indexOf(lowerKeyword);
+    if (containIndex >= 0) {
+      return {
+        matched: true,
+        score: SearchMatchEngine.SCORE_LITERAL_CONTAINS,
+        ranges: [{ start: containIndex, end: containIndex + lowerKeyword.length }]
+      };
+    }
     return null;
   }
 
   /**
-   * 字符单元前缀匹配：仅从第 0 个可匹配单元开始。
+   * 字符单元匹配：先从第 0 个单元（文件名前缀），再从后续任意单元。
    * 单字符规则：全拼完整 > 全拼前缀（查询耗尽）> 首字母 > 精确字符
    */
-  private static matchUnitPrefix(text: string, lowerKeyword: string): KeywordMatchResult | null {
+  private static matchUnit(text: string, lowerKeyword: string): KeywordMatchResult | null {
     const units: CharUnit[] = SearchMatchEngine.buildCharUnits(text);
     if (units.length === 0) {
       return null;
     }
-    // 第一个有效单元前若有非空白字符（符号等），不视为文件名前缀
-    if (units[0].index > 0) {
+
+    const prefixRange: HighlightRange | null =
+      SearchMatchEngine.tryMatchFrom(units, 0, lowerKeyword);
+    if (prefixRange !== null) {
       const leading: string = text.substring(0, units[0].index);
-      if (leading.trim().length > 0) {
-        return null;
-      }
+      const isPrefix: boolean = units[0].index === 0 || leading.trim().length === 0;
+      return {
+        matched: true,
+        score: isPrefix ? SearchMatchEngine.SCORE_UNIT_PREFIX : SearchMatchEngine.SCORE_UNIT_CONTAINS,
+        ranges: [prefixRange]
+      };
     }
 
-    const matched: HighlightRange | null =
-      SearchMatchEngine.tryMatchFrom(units, 0, lowerKeyword);
-    if (matched === null) {
-      return null;
+    for (let i = 1; i < units.length; i++) {
+      const containRange: HighlightRange | null =
+        SearchMatchEngine.tryMatchFrom(units, i, lowerKeyword);
+      if (containRange !== null) {
+        return {
+          matched: true,
+          score: SearchMatchEngine.SCORE_UNIT_CONTAINS,
+          ranges: [containRange]
+        };
+      }
     }
-    return {
-      matched: true,
-      score: SearchMatchEngine.SCORE_UNIT_PREFIX,
-      ranges: [matched]
-    };
+    return null;
   }
 
   private static tryMatchFrom(units: CharUnit[], start: number, query: string): HighlightRange | null {

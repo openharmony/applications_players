@@ -1016,7 +1016,7 @@ export class MediaDbManager {
         artist: '',
         album: '',
         duration: fileInfo.duration,
-        cover_image: fileInfo.thumbUri || '',
+        cover_image: fileInfo.coverUri || fileInfo.thumbUri || '',
         file_size: fileInfo.size,
         update_time: now,
         mtime: fileInfo.mtime,

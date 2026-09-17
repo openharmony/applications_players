@@ -61,6 +61,9 @@ export struct VideoPlayerNavPage {
     this.toolBarItems = this.homeViewModel.getToolBarItems();
     if (state.currentVideo !== undefined) {
       this.mountVideo(state.currentVideo);
+    } else {
+      // NavDestination 缓存复用时出栈不走 aboutToDisappear，必须卸掉 VideoPlayPage 才能重置倍速
+      this.currentFileInfo = null;
     }
     this.isSyncingFromViewModel = false;
   };
@@ -69,6 +72,8 @@ export struct VideoPlayerNavPage {
     this.toolBarItems = this.homeViewModel.getToolBarItems();
     if (state.currentVideo !== undefined) {
       this.mountVideo(state.currentVideo);
+    } else {
+      this.currentFileInfo = null;
     }
   }
 

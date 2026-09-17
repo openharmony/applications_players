@@ -14,6 +14,7 @@
  */
 
 import fs from '@ohos.file.fs';
+import { ArchiveMediaUriHelper } from './ArchiveMediaUriHelper';
 import { HiLog } from './HiLog';
 import { FileUtil } from './FileUtil';
 
@@ -67,6 +68,18 @@ export class MediaPlaybackSourceHelper {
    * @returns 存在性状态
    */
   public static checkAccess(uri: string, filePath: string, mediaPath: string): MediaSourceAccessState {
+    if (ArchiveMediaUriHelper.parseArchiveInnerUri(uri) !== null) {
+      HiLog.i(TAG, `checkAccess archive inner uri=${uri}`);
+      return MediaSourceAccessState.UNVERIFIABLE;
+    }
+    if (ArchiveMediaUriHelper.isArchivePreviewUri(uri)) {
+      const previewPath = MediaPlaybackSourceHelper.resolveCheckPath(uri, filePath, mediaPath);
+      if (previewPath.length > 0 && MediaPlaybackSourceHelper.canAccess(previewPath)) {
+        return MediaSourceAccessState.EXISTS;
+      }
+      HiLog.i(TAG, `checkAccess archive preview pending uri=${uri}`);
+      return MediaSourceAccessState.UNVERIFIABLE;
+    }
     const path = MediaPlaybackSourceHelper.resolveCheckPath(uri, filePath, mediaPath);
     if (path.length === 0) {
       HiLog.w(TAG, `checkAccess unverifiable uri=${uri}`);

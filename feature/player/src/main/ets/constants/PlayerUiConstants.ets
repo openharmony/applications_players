@@ -22,35 +22,36 @@ export class PlayerUiConstants {
   static readonly AUDIO_PANEL_WIDTH: string = 'calc(100% - 2vp)';
   /** 音频面板内左右内边距（与封面边缘对齐，面板已限宽故为 0） */
   static readonly AUDIO_CONTENT_PADDING_H: number = 0;
-  /** 视频/通用底部控制区左右内边距 */
-  static readonly CONTENT_PADDING_H: number = 20;
-  static readonly FILE_INFO_BOTTOM_GAP: number = 14;
+  /** 视频/通用底部控制区左右内边距（收紧以适配最大显示尺寸） */
+  static readonly CONTENT_PADDING_H: number = 12;
+  static readonly FILE_INFO_BOTTOM_GAP: number = 10;
   static readonly PROGRESS_TIME_GAP: number = 1;
-  static readonly CONTROL_ROW_TOP_MARGIN: number = 10;
-  static readonly PANEL_BOTTOM_PADDING: number = 22;
+  static readonly CONTROL_ROW_TOP_MARGIN: number = 8;
+  static readonly PANEL_BOTTOM_PADDING: number = 18;
 
   static readonly SIDE_SLOT_WIDTH: number = 64;
   /** 右侧槽宽：音频为倍速+播放列表；视频横屏为音量+倍速 */
   static readonly RIGHT_SIDE_SLOT_WIDTH: number = 108;
-  static readonly RIGHT_CONTROL_GAP: number = 3;
-  static readonly TRANSPORT_CLUSTER_GAP: number = 20;
-  /** 视频播控簇间距：略小于音频，避免横屏窄宽下 5 键被压缩重叠 */
-  static readonly VIDEO_TRANSPORT_CLUSTER_GAP: number = 12;
+  static readonly RIGHT_CONTROL_GAP: number = 4;
+  static readonly TRANSPORT_CLUSTER_GAP: number = 8;
+  /** 视频播控簇间距：窄屏下避免 ±15 与上一曲/下一曲重叠 */
+  static readonly VIDEO_TRANSPORT_CLUSTER_GAP: number = 4;
 
-  static readonly PLAY_BUTTON_SIZE: number = 56;
-  static readonly PLAY_ICON_SIZE: number = 26;
-  static readonly SKIP_BUTTON_SIZE: number = 44;
-  static readonly SKIP_ICON_SIZE: number = 22;
-  static readonly SEEK_BUTTON_SIZE: number = 40;
-  static readonly SEEK_ICON_SIZE: number = 22;
-  static readonly ACCESSORY_BUTTON_SIZE: number = 40;
-  static readonly ACCESSORY_ICON_SIZE: number = 22;
+  /** 播控尺寸按最大显示+字号场景收紧，保证一行七键不互相挤压 */
+  static readonly PLAY_BUTTON_SIZE: number = 48;
+  static readonly PLAY_ICON_SIZE: number = 22;
+  static readonly SKIP_BUTTON_SIZE: number = 36;
+  static readonly SKIP_ICON_SIZE: number = 18;
+  static readonly SEEK_BUTTON_SIZE: number = 32;
+  static readonly SEEK_ICON_SIZE: number = 18;
+  static readonly ACCESSORY_BUTTON_SIZE: number = 32;
+  static readonly ACCESSORY_ICON_SIZE: number = 18;
 
-  static readonly SPEED_CHIP_HEIGHT: number = 30;
-  static readonly SPEED_CHIP_WIDTH: number = 56;
-  static readonly SPEED_CHIP_RADIUS: number = 15;
-  static readonly SPEED_CHIP_PADDING_H: number = 8;
-  static readonly SPEED_FONT_SIZE: number = 12;
+  static readonly SPEED_CHIP_HEIGHT: number = 28;
+  static readonly SPEED_CHIP_WIDTH: number = 44;
+  static readonly SPEED_CHIP_RADIUS: number = 14;
+  static readonly SPEED_CHIP_PADDING_H: number = 6;
+  static readonly SPEED_FONT_SIZE: number = 11;
   static readonly SPEED_MENU_WIDTH: number = 168;
   static readonly SPEED_MENU_ITEM_FONT_SIZE: number = 16;
   static readonly SPEED_MENU_ITEM_HEIGHT: number = 44;
@@ -73,9 +74,10 @@ export class PlayerUiConstants {
   static readonly SPEED_MENU_OVERLAY_MARGIN_TOP: number = 120;
   static readonly SPEED_MENU_OVERLAY_MARGIN_RIGHT: number = 20;
 
-  static readonly TITLE_FONT_SIZE: number = 22;
-  static readonly META_FONT_SIZE: number = 13;
-  static readonly TIME_FONT_SIZE: number = 12;
+  /** 播放页标题/元信息：配合 chromeSize(vp)，不再用过大 fp 撑破底栏 */
+  static readonly TITLE_FONT_SIZE: number = 18;
+  static readonly META_FONT_SIZE: number = 12;
+  static readonly TIME_FONT_SIZE: number = 11;
 
   static readonly ICON_BUTTON_BG: string = 'rgba(255,255,255,0.12)';
   static readonly SPEED_CHIP_BG: string = 'rgba(255,255,255,0.14)';
@@ -92,8 +94,14 @@ export class PlayerUiConstants {
   static readonly COVER_SHADOW_OFFSET_Y: number = 8;
   static readonly COVER_AREA_PADDING_TOP: number = 12;
   static readonly COVER_AREA_PADDING_BOTTOM: number = 4;
-  static readonly COVER_EQUALIZER_GAP: number = 16;
+  /** 封面与起伏特效间距：须保留，避免特效叠到下方标题 */
+  static readonly COVER_EQUALIZER_GAP: number = 10;
+  /** 起伏特效底部预留，与 PlayerProgress 标题区隔离 */
+  static readonly EQUALIZER_BOTTOM_GAP: number = 6;
 
   /** 播放模式切换 Toast 展示时长（毫秒） */
   static readonly LOOP_MODE_TOAST_DURATION_MS: number = 2000;
+  /** 亮度/音量手势条高度（vp），手指滑动该距离对应满量程 */
+  static readonly GESTURE_PILL_HEIGHT: number = 160;
+  static readonly GESTURE_PILL_WIDTH: number = 48;
 }

@@ -28,6 +28,10 @@ export interface AudioMiniPlayerResumeTrack {
   fileName: string;
   mimeType: string;
   coverUri: string;
+  /** 文件大小（字节），恢复后用于播放页大小/码率展示（旧快照无此字段） */
+  fileSize?: number;
+  /** 时长（毫秒），恢复后用于码率估算（旧快照无此字段） */
+  durationMs?: number;
 }
 
 /** 迷你播放条冷启动恢复快照 */

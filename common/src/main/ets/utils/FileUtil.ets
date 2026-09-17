@@ -24,6 +24,7 @@ import { fileUri } from '@kit.CoreFileKit';
 import { StringUtil } from '../utils/StringUtil';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { ERROR_CODE } from '../constants/system/ErrorCode';
+import { ArchiveMediaUriHelper } from './ArchiveMediaUriHelper';
 
 enum CompressType {
   ZIP = '.zip',
@@ -479,6 +480,9 @@ export class FileUtil {
     let trimmed = uri.trim();
     if (trimmed.endsWith('/')) {
       trimmed = trimmed.slice(0, -1);
+    }
+    if (ArchiveMediaUriHelper.isArchiveInnerUri(trimmed)) {
+      return FileUtil.decodeUriLastSegment(trimmed);
     }
     const fileUriObj = FileUtil.getFileUriObjectFromUri(trimmed);
     if (!fileUriObj || StringUtil.isEmpty(fileUriObj.path)) {

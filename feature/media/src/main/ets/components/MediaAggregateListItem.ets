@@ -74,9 +74,9 @@ export struct MediaAggregateListItem {
     // 副标题仅展示文件大小，不拼接时长 / 分辨率
     this.metaText = sizeText;
 
-    this.nameFontSize = FontScaleUtil.scaleFont(MediaViewUiConstants.HOME_LIST_NAME_FONT_BASE, this.fontScale);
-    this.metaFontSize = FontScaleUtil.scaleFont(MediaViewUiConstants.HOME_LIST_META_FONT_BASE, this.fontScale);
-    this.durationFontSize = FontScaleUtil.scaleFont(MediaViewUiConstants.HOME_LIST_DURATION_FONT_BASE, this.fontScale);
+    this.nameFontSize = MediaViewUiConstants.HOME_LIST_NAME_FONT_BASE;
+    this.metaFontSize = MediaViewUiConstants.HOME_LIST_META_FONT_BASE;
+    this.durationFontSize = MediaViewUiConstants.HOME_LIST_DURATION_FONT_BASE;
   }
 
   build() {

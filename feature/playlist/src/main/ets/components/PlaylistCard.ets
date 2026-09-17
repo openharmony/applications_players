@@ -15,13 +15,14 @@
 
 
 import { HiLog } from '@ohos/common/src/main/ets/utils/HiLog';
+import { FontScaleUtil } from '@ohos/common/src/main/ets/utils/FontScaleUtil';
 import { PlaylistItem } from '../model/PlaylistItem';
 import { PlaylistConstants } from '../constants/PlaylistConstants';
 
 const TAG = 'PlaylistCard';
 
 /**
- * 播放列表项：扁平行样式，左侧封面右侧名称+曲目�?
+ * 播放列表项：扁平行样式，左侧封面右侧名称+曲目数
  */
 @Component
 export struct PlaylistCard {
@@ -32,16 +33,39 @@ export struct PlaylistCard {
   @State displayCoverUri: string = '';
   @State displayCount: number = 0;
   @State displayName: string = '';
+  /** 无封面占位 music 图标边长（vp），随封面尺寸与系统字号更新 */
+  @State placeholderIconSizeVp: number = PlaylistConstants.GRID_CARD_COVER_ICON_SIZE;
+  @StorageProp(FontScaleUtil.SYSTEM_FONT_SIZE_SCALE_KEY) @Watch('onSystemFontScaleChanged')
+  systemFontSizeScale: number = FontScaleUtil.DEFAULT_SCALE;
+  private coverSideVp: number = 0;
 
   aboutToAppear(): void {
     this.syncDisplayFromItem();
+    this.refreshPlaceholderIconSize();
   }
 
   onItemChanged(): void {
     this.syncDisplayFromItem();
   }
 
-  /** �?item 同步封面、名称与曲目数展示字�?*/
+  private onSystemFontScaleChanged(): void {
+    this.refreshPlaceholderIconSize();
+  }
+
+  /** 占位图标：封面比例定基准，再乘系统字号，夹在合理区间内 */
+  private refreshPlaceholderIconSize(): void {
+    const side = this.coverSideVp > 0 ? this.coverSideVp : PlaylistConstants.GRID_CARD_COVER_ICON_SIZE /
+      PlaylistConstants.GRID_CARD_COVER_ICON_RATIO;
+    const fontScale = Math.max(FontScaleUtil.DEFAULT_SCALE, this.systemFontSizeScale);
+    const byCover = side * PlaylistConstants.GRID_CARD_COVER_ICON_RATIO * fontScale;
+    const maxSize = side * PlaylistConstants.GRID_CARD_COVER_ICON_MAX_RATIO;
+    const next = Math.round(Math.min(maxSize, Math.max(PlaylistConstants.GRID_CARD_COVER_ICON_MIN, byCover)));
+    if (next !== this.placeholderIconSizeVp) {
+      this.placeholderIconSizeVp = next;
+    }
+  }
+
+  /** 从 item 同步封面、名称与曲目数展示字段 */
   private syncDisplayFromItem(): void {
     this.displayName = this.item.name;
     this.displayCoverUri = this.item.coverUri;
@@ -51,7 +75,7 @@ export struct PlaylistCard {
     }
   }
 
-  /** 无封面占位：浅灰底圆角框 + 居中白色音乐符号 */
+  /** 无封面占位：浅灰蓝底 + 居中系统 music 图标（随显示/字体缩放） */
   @Builder
   GridCoverPlaceholder() {
     Stack({ alignContent: Alignment.Center }) {
@@ -60,13 +84,22 @@ export struct PlaylistCard {
         .height('100%')
         .backgroundColor(PlaylistConstants.GRID_CARD_COVER_PLACEHOLDER_BACKGROUND)
 
-      SymbolGlyph($r('sys.symbol.play_square'))
-        .fontSize(PlaylistConstants.GRID_CARD_COVER_ICON_SIZE)
+      SymbolGlyph($r('sys.symbol.music'))
+        .fontSize(`${this.placeholderIconSizeVp}vp`)
         .fontColor([PlaylistConstants.GRID_CARD_COVER_PLACEHOLDER_ICON_COLOR])
+        .fontWeight(FontWeight.Medium)
         .renderingStrategy(SymbolRenderingStrategy.SINGLE)
     }
     .width('100%')
     .height('100%')
+    .onAreaChange((_oldValue: Area, newValue: Area) => {
+      const side = Number(newValue.width);
+      if (!(side > 0) || Math.abs(side - this.coverSideVp) < 0.5) {
+        return;
+      }
+      this.coverSideVp = side;
+      this.refreshPlaceholderIconSize();
+    })
   }
 
   @Builder

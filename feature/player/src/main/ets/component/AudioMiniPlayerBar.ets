@@ -31,6 +31,7 @@ import { PlaybackQueueSheetTab, PlaybackQueueSheetConstants } from '../constants
 import { PlayerMediaTitleUtil } from '../utils/PlayerMediaTitleUtil';
 import { PlayerUiConstants } from '../constants/PlayerUiConstants';
 import { AppThemeConstants } from '@ohos/common/src/main/ets/constants/ui/AppThemeConstants';
+import { FontScaleUtil } from '@ohos/common/src/main/ets/utils/FontScaleUtil';
 
 const TAG = 'AudioMiniPlayerBar';
 
@@ -517,14 +518,14 @@ export struct AudioMiniPlayerBar {
             .width(AudioMiniPlayerConstants.COVER_INNER_SIZE)
             .height(AudioMiniPlayerConstants.COVER_INNER_SIZE)
             .borderRadius(AudioMiniPlayerConstants.COVER_INNER_SIZE / 2)
-            .objectFit(ImageFit.Cover)
+            .objectFit(ImageFit.Contain)
         } else if (this.audioImage !== null) {
           Image(this.audioImage)
             .key(`mini_cover_embed_${this.audioItem.uri}_${this.coverRevision}`)
             .width(AudioMiniPlayerConstants.COVER_INNER_SIZE)
             .height(AudioMiniPlayerConstants.COVER_INNER_SIZE)
             .borderRadius(AudioMiniPlayerConstants.COVER_INNER_SIZE / 2)
-            .objectFit(ImageFit.Cover)
+            .objectFit(ImageFit.Contain)
         } else {
           Image(MediaCoverDisplayUtil.getAudioPlaceholderIcon())
             .width(16)
@@ -566,7 +567,7 @@ export struct AudioMiniPlayerBar {
           AudioMiniPlayerConstants.RING_TRACK_COLOR)
 
       SymbolGlyph(this.playIcon)
-        .fontSize(AudioMiniPlayerConstants.PLAY_ICON_SIZE)
+        .fontSize(FontScaleUtil.chromeSize(AudioMiniPlayerConstants.PLAY_ICON_SIZE))
         .fontWeight(FontWeight.Medium)
         .fontColor([AudioMiniPlayerConstants.CONTROL_ICON_COLOR])
     }
@@ -582,7 +583,7 @@ export struct AudioMiniPlayerBar {
   QueueButton() {
     Button({ type: ButtonType.Circle }) {
       SymbolGlyph(Constants.APP_BAR_ICON_PLAYLIST)
-        .fontSize(AudioMiniPlayerConstants.QUEUE_ICON_SIZE)
+        .fontSize(FontScaleUtil.chromeSize(AudioMiniPlayerConstants.QUEUE_ICON_SIZE))
         .fontColor([AudioMiniPlayerConstants.CONTROL_ICON_COLOR])
     }
     .width(AudioMiniPlayerConstants.QUEUE_BUTTON_SIZE)
@@ -613,7 +614,7 @@ export struct AudioMiniPlayerBar {
   CurrentTitleText() {
     Text(this.displayTitle)
       .key(`mini_title_${this.audioItem.uri}_${this.titleRenderRevision}`)
-      .fontSize(AudioMiniPlayerConstants.TITLE_FONT_SIZE)
+      .fontSize(FontScaleUtil.chromeSize(AudioMiniPlayerConstants.TITLE_FONT_SIZE))
       .fontColor(AudioMiniPlayerConstants.TITLE_TEXT_COLOR)
       .maxLines(AudioMiniPlayerConstants.TITLE_MAX_LINES)
       .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -625,7 +626,7 @@ export struct AudioMiniPlayerBar {
   IncomingTitleText() {
     Text(this.incomingTitle)
       .key(`mini_incoming_${this.incomingTitle}`)
-      .fontSize(AudioMiniPlayerConstants.TITLE_FONT_SIZE)
+      .fontSize(FontScaleUtil.chromeSize(AudioMiniPlayerConstants.TITLE_FONT_SIZE))
       .fontColor(AudioMiniPlayerConstants.TITLE_TEXT_COLOR)
       .maxLines(AudioMiniPlayerConstants.TITLE_MAX_LINES)
       .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -718,7 +719,7 @@ export struct AudioMiniPlayerBar {
   PlayPauseButton() {
     Button({ type: ButtonType.Circle, stateEffect: false }) {
       SymbolGlyph(this.playIcon)
-        .fontSize(AudioMiniPlayerConstants.PLAY_ICON_SIZE)
+        .fontSize(FontScaleUtil.chromeSize(AudioMiniPlayerConstants.PLAY_ICON_SIZE))
         .fontWeight(FontWeight.Medium)
         .fontColor([AudioMiniPlayerConstants.CONTROL_ICON_COLOR])
     }
@@ -736,7 +737,7 @@ export struct AudioMiniPlayerBar {
   SkipButton(icon: Resource, onClick: () => void) {
     Button({ type: ButtonType.Circle, stateEffect: false }) {
       SymbolGlyph(icon)
-        .fontSize(AudioMiniPlayerConstants.TRANSPORT_SKIP_ICON_SIZE)
+        .fontSize(FontScaleUtil.chromeSize(AudioMiniPlayerConstants.TRANSPORT_SKIP_ICON_SIZE))
         .fontWeight(FontWeight.Medium)
         .fontColor([AudioMiniPlayerConstants.CONTROL_ICON_COLOR])
     }

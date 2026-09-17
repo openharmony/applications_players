@@ -28,6 +28,7 @@ import { AVPlayerController } from '../controller/AVPlayerController';
 import { AudioPlaybackSession } from '../session/AudioPlaybackSession';
 import { PlaybackQueueSheetUiState, PlaybackQueueSheetViewModel } from '../viewmodel/PlaybackQueueSheetViewModel';
 import { PlaybackQueueListRow } from './PlaybackQueueListRow';
+import { FontScaleUtil } from '@ohos/common/src/main/ets/utils/FontScaleUtil';
 
 const TAG = 'PlaybackQueueSheetPanel';
 
@@ -266,8 +267,8 @@ export struct PlaybackQueueSheetPanel {
   TopBar() {
     Row() {
       Text($r('app.string.player_queue_sheet_title'))
-        .fontSize(PlaybackQueueSheetConstants.SOURCE_FONT_SIZE)
-        .fontWeight(FontWeight.Bold)
+        .fontSize(FontScaleUtil.chromeSize(PlaybackQueueSheetConstants.SOURCE_FONT_SIZE))
+        .fontWeight(FontWeight.Medium)
         .fontColor(PlaybackQueueSheetConstants.SOURCE_TEXT_COLOR)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -275,7 +276,7 @@ export struct PlaybackQueueSheetPanel {
 
       Button({ type: ButtonType.Circle }) {
         SymbolGlyph(PlaybackQueueSheetConstants.ICON_CLOSE)
-          .fontSize(PlaybackQueueSheetConstants.CLOSE_ICON_SIZE)
+          .fontSize(FontScaleUtil.chromeSize(PlaybackQueueSheetConstants.CLOSE_ICON_SIZE))
           .fontColor([PlaybackQueueSheetConstants.TAB_ACTIVE_TEXT])
       }
       .width(PlaybackQueueSheetConstants.CLOSE_BUTTON_SIZE)
@@ -301,10 +302,11 @@ export struct PlaybackQueueSheetPanel {
     Text(this.sourceName.length > 0 ?
       $r('app.string.player_queue_source_playlist', this.sourceName) :
       $r('app.string.player_queue_source_library'))
-      .fontSize(PlaybackQueueSheetConstants.ACTION_BAR_FONT_SIZE)
+      .fontSize(FontScaleUtil.chromeSize(PlaybackQueueSheetConstants.ACTION_BAR_FONT_SIZE))
       .fontColor($r('sys.color.font_secondary'))
       .maxLines(1)
       .textOverflow({ overflow: TextOverflow.Ellipsis })
+      .layoutWeight(1)
       .constraintSize({ maxWidth: '42%' })
   }
 
@@ -319,6 +321,7 @@ export struct PlaybackQueueSheetPanel {
           this.historyTracks.length)
       }
       .width('100%')
+      .constraintSize({ minHeight: PlaybackQueueSheetConstants.SEGMENT_HEIGHT })
       .height(PlaybackQueueSheetConstants.SEGMENT_HEIGHT)
       .padding(PlaybackQueueSheetConstants.SEGMENT_PADDING)
       .backgroundColor(PlaybackQueueSheetConstants.SEGMENT_BG)
@@ -336,19 +339,23 @@ export struct PlaybackQueueSheetPanel {
   SegmentTabItem(tab: number, label: Resource, count: number) {
     Row({ space: 4 }) {
       Text(label)
-        .fontSize(PlaybackQueueSheetConstants.SEGMENT_FONT_SIZE)
+        .fontSize(FontScaleUtil.chromeSize(PlaybackQueueSheetConstants.SEGMENT_FONT_SIZE))
         .fontWeight(this.activeTab === tab ? FontWeight.Medium : FontWeight.Regular)
         .fontColor(PlaybackQueueSheetConstants.TAB_ACTIVE_TEXT)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
       if (count > 0) {
         Text(`${count}`)
-          .fontSize(PlaybackQueueSheetConstants.SEGMENT_FONT_SIZE)
+          .fontSize(FontScaleUtil.chromeSize(PlaybackQueueSheetConstants.SEGMENT_FONT_SIZE))
           .fontWeight(this.activeTab === tab ? FontWeight.Medium : FontWeight.Regular)
           .fontColor(PlaybackQueueSheetConstants.TAB_ACTIVE_TEXT)
+          .maxLines(1)
       }
     }
     .layoutWeight(1)
     .height('100%')
     .justifyContent(FlexAlign.Center)
+    .padding({ left: 4, right: 4 })
     .borderRadius(PlaybackQueueSheetConstants.SEGMENT_RADIUS - 2)
     .backgroundColor(this.activeTab === tab ?
       PlaybackQueueSheetConstants.SEGMENT_ACTIVE_BG :
@@ -365,12 +372,15 @@ export struct PlaybackQueueSheetPanel {
     Row() {
       Row({ space: PlaybackQueueSheetConstants.ACTION_BAR_GAP }) {
         SymbolGlyph(this.getLoopModeIcon())
-          .fontSize(PlaybackQueueSheetConstants.ACTION_BAR_ICON_SIZE)
+          .fontSize(FontScaleUtil.chromeSize(PlaybackQueueSheetConstants.ACTION_BAR_ICON_SIZE))
           .fontColor([PlaybackQueueSheetConstants.TAB_ACTIVE_TEXT])
         Text(this.getLoopModeLabel())
-          .fontSize(PlaybackQueueSheetConstants.ACTION_BAR_FONT_SIZE)
+          .fontSize(FontScaleUtil.chromeSize(PlaybackQueueSheetConstants.ACTION_BAR_FONT_SIZE))
           .fontColor(PlaybackQueueSheetConstants.TAB_ACTIVE_TEXT)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
       }
+      .flexShrink(0)
       .onClick(() => {
         this.handleCycleLoopMode();
       })
@@ -384,7 +394,7 @@ export struct PlaybackQueueSheetPanel {
 
       if (this.queueCount > 1) {
         SymbolGlyph(PlaybackQueueSheetConstants.ICON_CLEAR_QUEUE)
-          .fontSize(PlaybackQueueSheetConstants.ACTION_BAR_ICON_SIZE)
+          .fontSize(FontScaleUtil.chromeSize(PlaybackQueueSheetConstants.ACTION_BAR_ICON_SIZE))
           .fontColor([PlaybackQueueSheetConstants.TAB_ACTIVE_TEXT])
           .onClick(() => {
             this.enterSelectionMode();
@@ -392,6 +402,7 @@ export struct PlaybackQueueSheetPanel {
       }
     }
     .width('100%')
+    .constraintSize({ minHeight: PlaybackQueueSheetConstants.ACTION_BAR_HEIGHT })
     .height(PlaybackQueueSheetConstants.ACTION_BAR_HEIGHT)
     .padding({
       left: PlaybackQueueSheetConstants.ACTION_BAR_MARGIN_H,
@@ -409,7 +420,7 @@ export struct PlaybackQueueSheetPanel {
 
       if (this.historyTracks.length > 1) {
         SymbolGlyph(PlaybackQueueSheetConstants.ICON_CLEAR_QUEUE)
-          .fontSize(PlaybackQueueSheetConstants.ACTION_BAR_ICON_SIZE)
+          .fontSize(FontScaleUtil.chromeSize(PlaybackQueueSheetConstants.ACTION_BAR_ICON_SIZE))
           .fontColor([PlaybackQueueSheetConstants.TAB_ACTIVE_TEXT])
           .onClick(() => {
             this.viewModel.clearHistoryTracks();

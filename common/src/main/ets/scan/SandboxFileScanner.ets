@@ -22,6 +22,7 @@ import media from '@ohos.multimedia.media';
 import type common from '@ohos.app.ability.common';
 import { SupportedMediaFormats } from '../constants/media/SupportedMediaFormats';
 import { MediaMetadataResolver } from '../utils/MediaMetadataResolver';
+import { Mp3DurationScanner } from '../utils/Mp3DurationScanner';
 
 const TAG = 'SandboxFileScanner';
 
@@ -164,6 +165,13 @@ export class SandboxFileScanner {
     }
 
     MediaMetadataResolver.applyAvMetadataToFileInfo(fileInfo, metadata);
+    // mp3 时长改为帧头扫描精确值（VBR 无 Xing 头文件按首帧码率估算会偏短）
+    if (Mp3DurationScanner.isMp3File(fileInfo.fileName)) {
+      const exact = await Mp3DurationScanner.scanExactDurationMs(fileInfo);
+      if (exact > 0) {
+        fileInfo.duration = exact;
+      }
+    }
   }
 
   private getFileExtension(fileName: string): string {

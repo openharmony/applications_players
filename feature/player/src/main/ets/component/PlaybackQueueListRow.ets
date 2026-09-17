@@ -17,6 +17,7 @@
 import { PlaybackQueueEntry } from '@ohos/common';
 import { AppThemeConstants } from '@ohos/common/src/main/ets/constants/ui/AppThemeConstants';
 import { MediaFormatUtil } from '@ohos/common/src/main/ets/utils/MediaFormatUtil';
+import { FontScaleUtil } from '@ohos/common/src/main/ets/utils/FontScaleUtil';
 import { PlaybackQueueSheetConstants } from '../constants/PlaybackQueueSheetConstants';
 import { PlayingEqualizerBars } from './PlayingEqualizerBars';
 
@@ -154,7 +155,9 @@ export struct PlaybackQueueListRow {
       Text(this.titleText)
         .fontSize(PlaybackQueueSheetConstants.ROW_TITLE_FONT_SIZE)
         .fontWeight(this.isCurrent ? FontWeight.Medium : FontWeight.Regular)
-        .fontColor(PlaybackQueueSheetConstants.ROW_TITLE_COLOR)
+        .fontColor(this.isCurrent ?
+          PlaybackQueueSheetConstants.ROW_CURRENT_TEXT_COLOR :
+          PlaybackQueueSheetConstants.ROW_TITLE_COLOR)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .width('100%')
@@ -177,7 +180,7 @@ export struct PlaybackQueueListRow {
   RowActionButton(icon: Resource, onClick?: () => void) {
     Button({ type: ButtonType.Circle }) {
       SymbolGlyph(icon)
-        .fontSize(PlaybackQueueSheetConstants.ROW_ACTION_ICON_SIZE)
+        .fontSize(FontScaleUtil.chromeSize(PlaybackQueueSheetConstants.ROW_ACTION_ICON_SIZE))
         .fontColor([PlaybackQueueSheetConstants.ROW_ACTION_COLOR])
         .fontWeight(FontWeight.Medium)
     }

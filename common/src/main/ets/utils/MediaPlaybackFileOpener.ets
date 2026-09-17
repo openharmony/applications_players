@@ -18,18 +18,18 @@ import fs from '@ohos.file.fs';
 import userFileManager from '@ohos.filemanagement.userFileManager';
 import dataSharePredicates from '@ohos.data.dataSharePredicates';
 import { AppContext } from '../context/AppContext';
+import { ArchiveMediaUriHelper } from './ArchiveMediaUriHelper';
+import { ArchivePlaybackExtractor } from './ArchivePlaybackExtractor';
 import { FileUtil } from './FileUtil';
 import { HiLog } from './HiLog';
+import { MediaPlaybackOpenResult } from './MediaPlaybackOpenResult';
 import { SupportedMediaFormats } from '../constants/media/SupportedMediaFormats';
 
-const TAG = 'MediaPlaybackFileOpener';
+export { MediaPlaybackOpenResult } from './MediaPlaybackOpenResult';
 
-/** 只读打开的媒体文件句柄，供 AVPlayer fdSrc 使用 */
-export interface MediaPlaybackOpenResult {
-  fd: number;
-  size: number;
-  release: () => Promise<void>;
-}
+const TAG = 'MediaPlaybackFileOpener';
+const ARCHIVE_PREVIEW_RETRY_COUNT = 6;
+const ARCHIVE_PREVIEW_RETRY_DELAY_MS = 250;
 
 /**
  * 播放链路媒体文件打开：沙箱 / file://docs 走 fs.open；file://media 走 userFileManager，统一产出 fd 供 AVPlayer
@@ -44,9 +44,17 @@ export class MediaPlaybackFileOpener {
    */
   public static async openReadOnly(uri: string, fileName: string): Promise<MediaPlaybackOpenResult | null> {
     HiLog.i(TAG, `openReadOnly start fileName=${fileName}`);
+    const archiveInner = ArchiveMediaUriHelper.parseArchiveInnerUri(uri);
+    if (archiveInner !== null) {
+      HiLog.i(TAG, `openReadOnly archive inner fileName=${fileName}`);
+      return ArchivePlaybackExtractor.openInnerFile(archiveInner.archiveUri, archiveInner.innerPath, fileName);
+    }
     // 媒体库 content URI 在各机型上 fs.open 行为不一致，统一走 userFileManager
     if (uri.startsWith('file://media/')) {
       return MediaPlaybackFileOpener.openMediaLibraryAsset(uri, fileName);
+    }
+    if (ArchiveMediaUriHelper.isArchivePreviewUri(uri)) {
+      return MediaPlaybackFileOpener.tryArchivePreviewOpen(uri, fileName);
     }
     const fsOpened = MediaPlaybackFileOpener.tryFsOpen(uri);
     if (fsOpened) {
@@ -135,6 +143,43 @@ export class MediaPlaybackFileOpener {
     }
     HiLog.w(TAG, `tryDocsUriOpen failed fileName=${fileName}`);
     return null;
+  }
+
+  /**
+   * 打开文件管理器临时解压目录中的媒体，解压未完成时短暂重试。
+   */
+  private static async tryArchivePreviewOpen(uri: string,
+    fileName: string): Promise<MediaPlaybackOpenResult | null> {
+    const candidates: string[] = [uri];
+    const normalized = FileUtil.normalizeMediaUri(uri);
+    if (normalized.length > 0 && normalized !== uri) {
+      candidates.push(normalized);
+    }
+    for (let attempt = 0; attempt < ARCHIVE_PREVIEW_RETRY_COUNT; attempt++) {
+      for (let i = 0; i < candidates.length; i++) {
+        const opened = MediaPlaybackFileOpener.tryFsOpen(candidates[i]);
+        if (opened) {
+          HiLog.i(TAG, `tryArchivePreviewOpen hit fileName=${fileName} attempt=${attempt}`);
+          return opened;
+        }
+        const pathOpened = MediaPlaybackFileOpener.tryFsOpenByPath(candidates[i], fileName);
+        if (pathOpened) {
+          HiLog.i(TAG, `tryArchivePreviewOpen path hit fileName=${fileName} attempt=${attempt}`);
+          return pathOpened;
+        }
+      }
+      if (attempt < ARCHIVE_PREVIEW_RETRY_COUNT - 1) {
+        await MediaPlaybackFileOpener.delay(ARCHIVE_PREVIEW_RETRY_DELAY_MS);
+      }
+    }
+    HiLog.w(TAG, `tryArchivePreviewOpen failed fileName=${fileName}`);
+    return null;
+  }
+
+  private static delay(ms: number): Promise<void> {
+    return new Promise<void>((resolve: () => void) => {
+      setTimeout(resolve, ms);
+    });
   }
 
   /**

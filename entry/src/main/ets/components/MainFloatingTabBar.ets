@@ -16,6 +16,7 @@
 
 import { MainTabIndex } from '../viewmodel/MainTabViewModel';
 import { MainTabBarConstants } from '../constants/MainTabBarConstants';
+import { FontScaleUtil } from '@ohos/common/src/main/ets/utils/FontScaleUtil';
 
 interface MainTabItem {
   itemIndex: number;
@@ -82,7 +83,7 @@ export struct MainFloatingTabBar {
     Column({ space: MainTabBarConstants.TAB_ICON_TEXT_SPACE }) {
       if (item.useSymbolIcon) {
         SymbolGlyph(item.icon)
-          .fontSize(MainTabBarConstants.TAB_ICON_SIZE)
+          .fontSize(FontScaleUtil.chromeSize(MainTabBarConstants.TAB_ICON_SIZE))
           .fontColor([this.isSelected(item.itemIndex) ?
             MainTabBarConstants.TAB_SELECTED_COLOR : MainTabBarConstants.TAB_UNSELECTED_COLOR])
       } else {
@@ -95,16 +96,18 @@ export struct MainFloatingTabBar {
       }
 
       Text(item.label)
-        .fontSize(MainTabBarConstants.TAB_FONT_SIZE)
+        .fontSize(FontScaleUtil.chromeSize(MainTabBarConstants.TAB_FONT_SIZE))
         .fontWeight(FontWeight.Normal)
         .fontColor(this.isSelected(item.itemIndex) ?
           MainTabBarConstants.TAB_SELECTED_COLOR : MainTabBarConstants.TAB_UNSELECTED_COLOR)
         .textAlign(TextAlign.Center)
         .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
     }
     .layoutWeight(1)
     .justifyContent(FlexAlign.Center)
     .height('100%')
+    .padding({ left: 4, right: 4 })
     .onClick(() => {
       if (!this.isSelected(item.itemIndex)) {
         this.onTabChange(item.itemIndex);

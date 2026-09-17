@@ -35,8 +35,7 @@ export struct TitleBar {
   @Prop isVideoMode: boolean = false;
   @State isSmallWindow: boolean = true;
   @State isShowMenu: boolean = true;
-  @Prop @Watch('watchFileName') fileName: string | Resource = '';
-  @StorageProp('fontScale') fontScale: number = FontScaleUtil.DEFAULT_SCALE;
+  @Prop fileName: string | Resource = '';
   @State textLength: number = 0;
   @State isShowTitleBar: boolean = false;
   @State isShowTitle: boolean = true;
@@ -115,7 +114,7 @@ export struct TitleBar {
             Row() {
               Text(this.getDisplayName())
                 .wordBreak(WordBreak.BREAK_ALL)
-                .fontSize(FontScaleUtil.scaleFont(18, this.fontScale))
+                .fontSize(18)
                 .fontColor(this.isVideoMode ? Color.White : $r('sys.color.ohos_id_color_titlebar_text'))
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
                 .maxLines(1)
@@ -157,9 +156,9 @@ export struct TitleBar {
             Row() {
               Text(this.fileName)
                 .wordBreak(WordBreak.BREAK_ALL)
-                .fontSize(FontScaleUtil.scaleFont(18, this.fontScale))
+                .fontSize(FontScaleUtil.chromeSize(16))
                 .fontColor(this.isVideoMode ? Color.White : $r('sys.color.ohos_id_color_text_primary'))
-                .fontWeight(FontWeight.Bold)
+                .fontWeight(FontWeight.Medium)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
                 .maxLines(1)
                 .id('title_bar_file_name_id_phone')
@@ -228,7 +227,7 @@ export struct TitleBar {
 
   private getTitleBarBackground(): ResourceColor {
     if (this.isVideoMode || this.transparentTitleBar) {
-      return $r('sys.color.ohos_id_color_background_transparent');
+      return '#000000';
     }
     if (this.forceDarkStyle) {
       return $r('app.color.player_page_bg');

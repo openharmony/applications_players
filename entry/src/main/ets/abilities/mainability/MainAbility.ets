@@ -25,7 +25,7 @@ import { MediaProgressNotificationHelper } from '@ohos/common/src/main/ets/notif
 import { AudioMiniPlayerResumeStore } from '@ohos/common/src/main/ets/persistence/preferences/AudioMiniPlayerResumeStore';
 import { PlaybackHistoryManager } from '@ohos/common/src/main/ets/persistence/preferences/PlaybackHistoryManager';
 import { PlaylistPlaybackResumeManager } from '@ohos/common/src/main/ets/persistence/preferences/PlaylistPlaybackResumeManager';
-import { MediaPermissionManager } from '@ohos/common/src/main/ets/permission/MediaPermissionManager';
+import { MediaPermissionManager, PermissionState } from '@ohos/common/src/main/ets/permission/MediaPermissionManager';
 import { AppContext } from '@ohos/common/src/main/ets/context/AppContext';
 import { appLocalStorage } from '@ohos/common/src/main/ets/storage/AppLocalStorage';
 import { ThumbnailManager } from '@ohos/common/src/main/ets/thumbnail/ThumbnailManager';
@@ -155,9 +155,10 @@ export default class MainAbility extends UIAbility {
     // 冷启动须先注册 AppStorage 键，后续 WindowUtil 才能用 set 刷新并驱动 @StorageLink
     AppStorage.setOrCreate<number>(SafeAreaConstants.STATUS_BAR_HEIGHT_KEY, 0);
     AppStorage.setOrCreate<number>(SafeAreaConstants.NAVI_INDICATOR_HEIGHT_KEY, 0);
-    // 尽早注册队列切歌监听，后台播控中心切歌时不依赖 UI @Watch
+    // 提前触发单例创建，避免 onForeground 首次 getInstance 阻塞首帧
     AudioPlaybackSession.getInstance();
     VideoPlaybackSession.getInstance();
+    // 队列切歌监听从 onForeground 触发（冷启动无活跃播放，无需 onCreate 阶段注册）
     PlaybackCallInterruptGuard.register();
     PlaybackVideoScreenLockGuard.register();
 
@@ -166,9 +167,13 @@ export default class MainAbility extends UIAbility {
       this.handleWantAction(want);
     }
     this.applySortWantParameters(want);
-    MediaProgressNotificationHelper.addNotificationSlots();
-    void notificationManager.cancel(LEGACY_AUDIO_PLAYBACK_NOTIFICATION_ID);
+    // 延迟执行：通知槽位注册与残留取消不影响首帧渲染
+    setTimeout(() => {
+      MediaProgressNotificationHelper.addNotificationSlots();
+      void notificationManager.cancel(LEGACY_AUDIO_PLAYBACK_NOTIFICATION_ID);
+    }, 0);
     AppThemeModeHelper.syncFromConfiguration(this.context.config);
+    FontScaleUtil.syncSystemFontSizeScale(this.context.config?.fontSizeScale);
   }
 
   /**
@@ -177,8 +182,9 @@ export default class MainAbility extends UIAbility {
    * @param newConfig 新配置
    */
   onConfigurationUpdate(newConfig: Configuration): void {
-    HiLog.i(TAG, `onConfigurationUpdate colorMode=${newConfig.colorMode}`);
+    HiLog.i(TAG, `onConfigurationUpdate colorMode=${newConfig.colorMode} fontSizeScale=${newConfig.fontSizeScale}`);
     AppThemeModeHelper.syncFromConfiguration(newConfig);
+    FontScaleUtil.syncSystemFontSizeScale(newConfig.fontSizeScale);
     if (this.context?.windowStage) {
       this.context.windowStage.getMainWindow()
         .then((mainWindow: window.Window) => {
@@ -296,14 +302,18 @@ export default class MainAbility extends UIAbility {
     AppContext.getInstance().setAppContext(this.context.getApplicationContext());
     AppContext.getInstance().setCommonContext(this.context);
 
+    // === 关键路径：首页必需的 Preferences ===
     DisplaySettingsPreference.getInstance().init(this.context);
-    PlaybackHistoryManager.getInstance().init(this.context);
-    PlaylistPlaybackResumeManager.getInstance().init(this.context);
-    AudioMiniPlayerResumeStore.getInstance().init(this.context);
     permissionMgr.initMediaPermissionPreference(this.context);
+
     AppStorage.setOrCreate(FontScaleUtil.STORAGE_KEY,
       DisplaySettingsPreference.getInstance().getFontScale());
-    HiLog.i(TAG, `Display settings initialized, fontScale=${DisplaySettingsPreference.getInstance().getFontScale()}`);
+    FontScaleUtil.syncSystemFontSizeScale(this.context?.config?.fontSizeScale);
+    HiLog.i(TAG, `Display settings initialized, fontScale=${DisplaySettingsPreference.getInstance().getFontScale()} systemFontSizeScale=${this.context?.config?.fontSizeScale}`);
+
+    // 播放会话中断恢复冲刷（冷启动无活跃播放，flush 为 no-op）
+    AudioPlaybackSession.getInstance().getController().flushPendingInterruptResume();
+    VideoPlaybackSession.getInstance().getActiveController()?.flushPendingInterruptResume();
 
     if (this.context?.windowStage) {
       this.context.windowStage.getMainWindow()
@@ -323,31 +333,42 @@ export default class MainAbility extends UIAbility {
           HiLog.w(TAG, `reapplyAppWindowChrome onForeground failed message=${error.message}`);
         });
     }
-    HomeViewModel.getInstance().syncMediaProgressUiOnForeground();
-    AudioPlaybackSession.getInstance().getController().flushPendingInterruptResume();
-    VideoPlaybackSession.getInstance().getActiveController()?.flushPendingInterruptResume();
 
-    // Initialize ThumbnailManager to ensure instance exists before onDestroy
-    try {
-      ThumbnailManager.getInstance(this.context);
-      HiLog.i(TAG, 'ThumbnailManager initialized in onForeground');
-    } catch (error) {
-      HiLog.e(TAG, `ThumbnailManager init failed: ${error}`);
-    }
+    // === 延迟到首帧后：非首帧必需的初始化 ===
+    setTimeout(() => {
+      PlaybackHistoryManager.getInstance().init(this.context);
+      PlaylistPlaybackResumeManager.getInstance().init(this.context);
+      AudioMiniPlayerResumeStore.getInstance().init(this.context);
+    }, 0);
 
-    // 每次回前台都必须复核系统权限：用户可能已在系统设置中关闭存储权限。
-    // 禁止因内存缓存为 GRANTED 而跳过同步，否则会继续扫描公共目录且不弹授权窗。
+    setTimeout(() => {
+      HomeViewModel.getInstance().syncMediaProgressUiOnForeground();
+    }, 0);
+
+    setTimeout(() => {
+      try {
+        ThumbnailManager.getInstance(this.context);
+        HiLog.i(TAG, 'ThumbnailManager initialized in onForeground');
+      } catch (error) {
+        HiLog.e(TAG, `ThumbnailManager init failed: ${error}`);
+      }
+    }, 0);
+
+    // 冷启动时权限同步由 MediaAggregateViewModel.init 负责，避免重复 IPC；
+    // 仅在热启动（后台回前台）时刷新权限状态，应对用户在系统设置中修改权限
     const cachedState = permissionMgr.getPermissionState();
-    HiLog.i(TAG, `Cached permission state before sync: ${cachedState}`);
-
-    // 以系统读权限为准同步业务态：PARTIAL（仅音乐和音频等）也应保留，禁止强制改写为 DENIED
-    permissionMgr.syncPermissionState()
-      .then((state) => {
-        HiLog.i(TAG, `Permission sync result: ${state}`);
-      })
-      .catch((error: Error) => {
-        HiLog.e(TAG, `Permission sync failed: ${error.message}`);
-      });
+    if (cachedState !== PermissionState.PENDING) {
+      HiLog.i(TAG, `Hot start permission sync, cached=${cachedState}`);
+      permissionMgr.syncPermissionState()
+        .then((state) => {
+          HiLog.i(TAG, `Permission sync result: ${state}`);
+        })
+        .catch((error: Error) => {
+          HiLog.e(TAG, `Permission sync failed: ${error.message}`);
+        });
+    } else {
+      HiLog.i(TAG, `Cold start: permission sync delegated to MediaAggregateViewModel`);
+    }
 
     // 首次启动时申请通知权限（fire-and-forget，不阻塞启动流程）
     MediaProgressNotificationHelper.ensureNotificationEnabled(this.context)

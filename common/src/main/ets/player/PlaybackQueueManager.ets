@@ -388,6 +388,7 @@ export class PlaybackQueueManager {
 
   /**
    * 下一曲：队列有多首时切到下一首（末首后回到第一首）。
+   * 队列仅一首时返回 false，由播放器从头重播当前曲。
    *
    * @returns 是否已触发切歌
    */

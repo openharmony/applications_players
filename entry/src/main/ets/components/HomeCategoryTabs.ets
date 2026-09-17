@@ -17,12 +17,21 @@
 
 import { HiLog } from '@ohos/common/src/main/ets/utils/HiLog';
 import { AppThemeConstants } from '@ohos/common/src/main/ets/constants/ui/AppThemeConstants';
+import { FontScaleUtil } from '@ohos/common/src/main/ets/utils/FontScaleUtil';
 import { HomeViewConstants } from '../constants/HomeViewConstants';
 
 const TAG = 'HomeCategoryTabs';
 
 /** 与播放栏、底栏、列表卡片左侧对齐（设计稿 16） */
 const CATEGORY_ROW_PADDING_H: number = 16;
+/** 设计稿：常规字号下胶囊组占总宽比例 */
+const CATEGORY_ROW_WIDTH_NORMAL: string = '60%';
+/** 系统字号特别大时横向铺满，避免三项挤叠 */
+const CATEGORY_ROW_WIDTH_EXPANDED: string = '100%';
+/** 分类胶囊高度（vp）；内部字号用 chromeSize，避免字体放大撑破固定高度 */
+const CATEGORY_PILL_HEIGHT: number = 34;
+const CATEGORY_PILL_ICON_SIZE: number = 16;
+const CATEGORY_PILL_FONT_SIZE: number = 16;
 
 interface CategoryTabItem {
   filterKey: string;
@@ -32,10 +41,13 @@ interface CategoryTabItem {
 
 /**
  * 首页分类 Tab View：全部 / 音频 / 视频 分段选择
+ * 常规字号保持设计稿约 60% 宽；系统字号 ≥ 1.2 时横向铺满。
  */
 @Component
 export struct HomeCategoryTabs {
   @Prop currentFilter: string = HomeViewConstants.FILTER_ALL;
+  @StorageProp(FontScaleUtil.SYSTEM_FONT_SIZE_SCALE_KEY)
+  systemFontSizeScale: number = FontScaleUtil.DEFAULT_SCALE;
   onFilterSelected: (filterKey: string) => void = () => {};
 
   private getCategoryTabItems(): CategoryTabItem[] {
@@ -58,13 +70,20 @@ export struct HomeCategoryTabs {
     ];
   }
 
+  private getCategoryRowWidth(): string {
+    if (FontScaleUtil.needsExpandedHorizontalLayout(this.systemFontSizeScale)) {
+      return CATEGORY_ROW_WIDTH_EXPANDED;
+    }
+    return CATEGORY_ROW_WIDTH_NORMAL;
+  }
+
   build() {
     Row({ space: 8 }) {
       ForEach(this.getCategoryTabItems(), (item: CategoryTabItem) => {
         this.CategoryPill(item)
       }, (item: CategoryTabItem) => item.filterKey)
     }
-    .width('60%')
+    .width(this.getCategoryRowWidth())
     .alignSelf(ItemAlign.Start)
     .padding({ left: CATEGORY_ROW_PADDING_H, right: CATEGORY_ROW_PADDING_H, top: 2, bottom: 10 })
   }
@@ -74,21 +93,24 @@ export struct HomeCategoryTabs {
     Button({ type: ButtonType.Normal, stateEffect: true }) {
       Row({ space: 4 }) {
         SymbolGlyph(item.icon)
-          .fontSize(16)
+          .fontSize(FontScaleUtil.chromeSize(CATEGORY_PILL_ICON_SIZE))
           .fontColor([this.currentFilter === item.filterKey ?
             AppThemeConstants.SEGMENT_SELECTED_TEXT : AppThemeConstants.SEGMENT_UNSELECTED_TEXT])
         Text(item.label)
-          .fontSize(16)
-          .fontWeight(this.currentFilter === item.filterKey ? 600 : 500)
+          .fontSize(FontScaleUtil.chromeSize(CATEGORY_PILL_FONT_SIZE))
+          .fontWeight(this.currentFilter === item.filterKey ? FontWeight.Medium : FontWeight.Regular)
           .fontColor(this.currentFilter === item.filterKey ?
             AppThemeConstants.SEGMENT_SELECTED_TEXT : AppThemeConstants.SEGMENT_UNSELECTED_TEXT)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
       }
       .justifyContent(FlexAlign.Center)
       .alignItems(VerticalAlign.Center)
+      .width('100%')
     }
     .layoutWeight(1)
-    .height(34)
-    .borderRadius(17)
+    .height(CATEGORY_PILL_HEIGHT)
+    .borderRadius(CATEGORY_PILL_HEIGHT / 2)
     .backgroundColor(this.currentFilter === item.filterKey ?
       AppThemeConstants.SEGMENT_SELECTED_BG : $r('sys.color.ohos_id_color_background'))
     .onClick(() => {

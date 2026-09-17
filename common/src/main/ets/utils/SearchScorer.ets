@@ -69,7 +69,7 @@ export class SearchScorer {
     for (const keyword of keywords) {
       const lowerKeyword: string = keyword.toLowerCase();
 
-      // 文件名：统一前缀匹配（字面 / 首字符 / 拼音），并回填精确高亮
+      // 文件名：字面/拼音包含匹配（开头优先），并回填精确高亮
       const nameMatch: KeywordMatchResult = SearchMatchEngine.matchText(fileName, lowerKeyword);
       if (nameMatch.matched && nameMatch.score > 0) {
         totalScore += nameMatch.score * SearchScorer.FIELD_WEIGHT_FILE_NAME / 100;
@@ -80,8 +80,8 @@ export class SearchScorer {
         continue;
       }
 
-      // 路径仅做字面前缀弱匹配，不高亮文件名
-      const pathScore: number = SearchScorer.scorePrefixOnly(filePath, lowerKeyword);
+      // 路径仅做字面弱匹配，不高亮文件名
+      const pathScore: number = SearchScorer.scoreFieldContains(filePath, lowerKeyword);
       if (pathScore > 0) {
         totalScore += pathScore * SearchScorer.FIELD_WEIGHT_FILE_PATH / 100;
         matchedKeywords.push(keyword);
@@ -97,8 +97,8 @@ export class SearchScorer {
     return result;
   }
 
-  /** 仅前缀匹配（精确或 startsWith），不做包含/后缀 */
-  public static scorePrefixOnly(fieldValue: string, keyword: string): number {
+  /** 字面匹配：精确 > 前缀 > 包含 */
+  public static scoreFieldContains(fieldValue: string, keyword: string): number {
     if (!fieldValue || !keyword) {
       return 0;
     }
@@ -109,12 +109,20 @@ export class SearchScorer {
     if (lowerField.startsWith(keyword)) {
       return SearchScorer.SCORE_PREFIX_MATCH;
     }
+    if (lowerField.includes(keyword)) {
+      return SearchScorer.SCORE_CONTAINS_MATCH;
+    }
     return 0;
   }
 
-  /** @deprecated 请使用 scorePrefixOnly；保留兼容旧调用，语义已统一为前缀 */
+  /** @deprecated 请使用 scoreFieldContains */
+  public static scorePrefixOnly(fieldValue: string, keyword: string): number {
+    return SearchScorer.scoreFieldContains(fieldValue, keyword);
+  }
+
+  /** @deprecated 请使用 scoreFieldContains；保留兼容旧调用 */
   public static scoreField(fieldValue: string, keyword: string, _isFileName: boolean): number {
-    return SearchScorer.scorePrefixOnly(fieldValue, keyword);
+    return SearchScorer.scoreFieldContains(fieldValue, keyword);
   }
 
   public static addHighlightRanges(text: string, keyword: string, ranges: HighlightRange[]): void {

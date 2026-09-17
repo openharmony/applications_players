@@ -52,7 +52,7 @@ export class AudioMiniPlayerConstants {
 
   static readonly QUEUE_BUTTON_SIZE: number = 32;
   static readonly QUEUE_ICON_SIZE: number = 18;
-  static readonly CONTROL_GAP: number = 10;
+  static readonly CONTROL_GAP: number = 6;
   static readonly COVER_TITLE_GAP: number = 10;
   /** 标题区横向滑动切歌：超过该位移（vp）才触发上一曲/下一曲 */
   static readonly TITLE_SWIPE_TRACK_MIN_OFFSET: number = 48;

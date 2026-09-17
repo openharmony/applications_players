@@ -52,6 +52,8 @@ export class PlaylistConstants {
   static readonly GRID_CACHED_COUNT: number = 4;
   /** 宫格菜单已弹出时，平移超过该距离（vp）视为起拖并关闭菜单 */
   static readonly GRID_MENU_DRAG_CLOSE_PAN_DISTANCE: number = 12;
+  /** 更多按钮打开菜单后，抑制冒泡点击的兜底超时（毫秒；长按靠手势互斥，不依赖此时长） */
+  static readonly GRID_MENU_SUPPRESS_CLICK_MS: number = 2500;
   /** 详情页曲目 List LazyForEach 预加载项数 */
   static readonly DETAIL_TRACK_LIST_CACHED_COUNT: number = 8;
   /** 详情页曲目 LongPress 识别时长（毫秒） */
@@ -91,7 +93,12 @@ export class PlaylistConstants {
   static readonly GRID_CARD_GRADIENT_START: string = '#667EEA';
   static readonly GRID_CARD_GRADIENT_END: string = '#764BA2';
   static readonly GRID_CARD_COVER_ICON_COLOR: string = 'rgba(255,255,255,0.92)';
-  static readonly GRID_CARD_COVER_ICON_SIZE: number = 40;
+  /** 无封面占位图标：默认字号（fp，跟随系统字体）；封面测量后按比例覆盖 */
+  static readonly GRID_CARD_COVER_ICON_SIZE: number = 32;
+  /** 占位图标约占封面边长的比例（随显示大小 / 卡片宽度变化） */
+  static readonly GRID_CARD_COVER_ICON_RATIO: number = 0.28;
+  static readonly GRID_CARD_COVER_ICON_MIN: number = 24;
+  static readonly GRID_CARD_COVER_ICON_MAX_RATIO: number = 0.42;
   /** 网格卡无封面：浅灰蓝底（参考设计稿） */
   static readonly GRID_CARD_COVER_PLACEHOLDER_BACKGROUND: string = '#D6E2EE';
   static readonly GRID_CARD_COVER_PLACEHOLDER_ICON_COLOR: string = '#A8B8C8';

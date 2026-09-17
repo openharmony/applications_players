@@ -33,6 +33,7 @@ import { MediaImportHelper, MediaImportResult } from '../scan/MediaImportHelper'
 import { SupportedMediaFormats } from '../constants/media/SupportedMediaFormats';
 import { FileUtil } from '../utils/FileUtil';
 import { MediaPlaybackFileOpener } from '../utils/MediaPlaybackFileOpener';
+import { Mp3DurationScanner } from '../utils/Mp3DurationScanner';
 
 const TAG = 'MediaDataSource';
 
@@ -93,7 +94,7 @@ class MediaScanCallback implements ScanTaskCallback {
       this.owner.cacheManager.updateCache(MediaType.UNKNOWN, task.result);
       this.owner.dbUpdateMediaMetadata(task.result);
 
-      this.owner.generateThumbnailsBackground(task.result);
+      this.owner.startThumbnailGeneration(task.result);
     }
     HiLog.i(TAG, `Scan task completed: ${task.id}, files: ${task.result.length}`);
   }
@@ -132,6 +133,8 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
   private dataChangeListeners: ((data: FileInfo[]) => void)[] = [];
   private thumbnailUpdateListeners: ((uri: string, fileInfo: FileInfo) => void)[] = [];
   private isGeneratingThumbnails: boolean = false;  // 缩略图生成状态标志
+  /** 当前在途的缩略图生成 Promise，供扫描流程 await 后再统一上屏（消除占位封面→真实封面闪烁） */
+  private thumbnailGenerationPromise: Promise<void> | null = null;
   /**
    * 抑制 setData 期间的 UI 通知：scanMediaFiles 流程中 ScanTaskPool、
    * supplementWithFilesystemScan、removeDeletedFiles 会依次调用 setData，
@@ -346,15 +349,16 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
       // 查询全部类型数据，setData 自动按 mediaType 过滤显示
       const dbData = await this.dbManager.queryMediaMetadata();
       if (dbData.length > 0) {
-        this.suppressDataNotification = true;
-        this.setData(dbData);
-        this.cacheManager.updateCache(MediaType.UNKNOWN, dbData);
+        // 冷启动优化：DB 有缓存时立即通知 UI 显示，不等待文件系统扫描+fillDuration
         this.suppressDataNotification = false;
+        this.setData(dbData);
+        // 缓存全部类型数据，用 UNKNOWN key
+        this.cacheManager.updateCache(MediaType.UNKNOWN, dbData);
         this.notifyDataChanged();
         HiLog.i(TAG, `Loaded all from database cache: ${dbData.length} files, filtered to ${MediaType[mediaType]}: ${this.filteredArray.length}`);
 
         // 延迟到首帧后全量扫描，发现关闭期间媒体库/公共目录的增删并刷新列表
-        setTimeout(async (): Promise<void> => {
+        setTimeout(async () => {
           try {
             await this.scanMediaFiles(MediaType.UNKNOWN);
           } catch (error) {
@@ -365,7 +369,7 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
         // 数据库无数据，执行全量扫描（首次启动场景）
         HiLog.i(TAG, `No cached data in database, performing full scan (all types)`);
         await this.scanMediaFiles(MediaType.UNKNOWN);
-      }
+}
     } catch (error) {
       HiLog.e(TAG, `Failed to load media files: ${error}`);
       throw new Error(`加载媒体文件失败: ${error}`);
@@ -649,14 +653,14 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
   }
 
   /** 主线程补充 file://docs 公共目录扫描，与索引结果合并 */
-  private async supplementWithFilesystemScan(baseResults: FileInfo[]): Promise<void> {
+  private async supplementWithFilesystemScan(baseResults: FileInfo[], skipFillDuration?: boolean): Promise<void> {
     if (!this.allowPublicFilesystemScan) {
       HiLog.i(TAG, 'Skipping PublicStorageScanner: missing both READ_AUDIO + READ_IMAGEVIDEO, preventing File Access bypass');
       return;
     }
     try {
       const scanner = new PublicStorageScanner(this.context);
-      const scanResult = await scanner.scanAllMediaFiles();
+      const scanResult = await scanner.scanAllMediaFiles(skipFillDuration);
       const fsResults = scanResult.files;
       const durationFailedFiles = scanResult.durationFailedFiles;
       if (fsResults.length === 0) {
@@ -708,14 +712,18 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
         }
         newFiles.push(file);
       }
-      // 修复：将合并后 duration 被补充的已有文件也写回 DB，避免重启后丢失
+      // 修复：将合并后 duration 被补充的已有文件也写回 DB，避免重启后丢失；
+      // mp3 精确时长刷新（旧估算值变化）同样写回 DB
       const durationUpdatedFiles: FileInfo[] = [];
       for (const file of merged) {
-        if (file.duration > 0) {
-          const oldDuration = baseDurationMap.get(file.uri) ?? 0;
-          if (oldDuration <= 0) {
-            durationUpdatedFiles.push(file);
-          }
+        if (file.duration <= 0) {
+          continue;
+        }
+        const oldDuration = baseDurationMap.get(file.uri) ?? 0;
+        if (oldDuration <= 0) {
+          durationUpdatedFiles.push(file);
+        } else if (oldDuration !== file.duration && Mp3DurationScanner.isMp3File(file.fileName)) {
+          durationUpdatedFiles.push(file);
         }
       }
       if (durationUpdatedFiles.length > 0) {
@@ -727,7 +735,7 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
 
       if (newFiles.length > 0) {
         await this.dbUpdateMediaMetadata(newFiles);
-        this.generateThumbnailsBackground(newFiles);
+        this.startThumbnailGeneration(newFiles);
       }
     } catch (error) {
       HiLog.e(TAG, `Public directory filesystem scan failed: ${error}`);
@@ -765,12 +773,15 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
       const normUri = FileUtil.normalizeMediaUri(file.uri);
       const existingIndex = uriToIndex.get(normUri);
       if (existingIndex !== undefined) {
-        // 已存在：用文件系统的正确值补充 size / duration（DB 旧记录可能为 0）
+        // 已存在：用文件系统的正确值补充 size / duration（DB 旧记录可能为 0）；
+        // mp3 的 duration 经帧头扫描为精确值，DB 旧估算值一并刷新
         const existing = merged[existingIndex];
         if (existing.size <= 0 && file.size > 0) {
           existing.size = file.size;
         }
-        if (existing.duration <= 0 && file.duration > 0) {
+        if (file.duration > 0 &&
+          (existing.duration <= 0 ||
+          (Mp3DurationScanner.isMp3File(existing.fileName) && existing.duration !== file.duration))) {
           existing.duration = file.duration;
         }
         continue;
@@ -787,7 +798,61 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
       nameSet.add(file.fileName);
       merged.push(file);
     }
-    return merged;
+    return MediaDataSource.collapseCameraCaptureVideos(merged);
+  }
+
+  /**
+   * 相机一次录像会在 VID_* 目录留下兼容副本。同目录视频只保留一条。
+   */
+  private static collapseCameraCaptureVideos(files: FileInfo[]): FileInfo[] {
+    const folderIndex = new Map<string, number>();
+    const collapsed: FileInfo[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const folderKey = MediaDataSource.getCameraVideoFolderKey(file);
+      if (folderKey.length === 0) {
+        collapsed.push(file);
+        continue;
+      }
+      const existingIndex = folderIndex.get(folderKey);
+      if (existingIndex === undefined) {
+        folderIndex.set(folderKey, collapsed.length);
+        collapsed.push(file);
+        continue;
+      }
+      if (MediaDataSource.isPreferredCameraVideo(file, collapsed[existingIndex])) {
+        collapsed[existingIndex] = file;
+      }
+    }
+    return collapsed;
+  }
+
+  private static getCameraVideoFolderKey(file: FileInfo): string {
+    if (!SupportedMediaFormats.isSupportedVideo(file.fileName)) {
+      return '';
+    }
+    const uri = FileUtil.normalizeMediaUri(file.uri);
+    const lastSlash = uri.lastIndexOf('/');
+    if (lastSlash <= 0) {
+      return '';
+    }
+    const folder = uri.substring(0, lastSlash);
+    const folderNameStart = folder.lastIndexOf('/');
+    const folderName = folderNameStart >= 0 ? folder.substring(folderNameStart + 1) : folder;
+    if (!folderName.startsWith('VID_')) {
+      return '';
+    }
+    return folder;
+  }
+
+  private static isPreferredCameraVideo(candidate: FileInfo, current: FileInfo): boolean {
+    if (candidate.duration > 0 && current.duration <= 0) {
+      return true;
+    }
+    if (candidate.duration <= 0 && current.duration > 0) {
+      return false;
+    }
+    return candidate.fileName > current.fileName;
   }
 
   /**
@@ -913,6 +978,7 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
       const completedTask = this.scanTaskPool.getTask(this.currentTaskId);
       const indexResults = completedTask?.result ?? [];
       if (this.includePublicFiles) {
+        // 全量扫描（含删除后强制刷新）必须同步填充 duration，否则列表右下角时长丢失。
         await this.supplementWithFilesystemScan(indexResults);
       }
 
@@ -925,6 +991,31 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
       this.suppressDataNotification = false;
       this.notifyDataChanged();
       this.cacheManager.updateCache(MediaType.UNKNOWN, this.getDataArray());
+
+      try {
+        await this.awaitThumbnailGeneration();
+      } catch (error) {
+        HiLog.e(TAG, `Thumbnail generation interrupted, fallback to placeholder covers: ${error}`);
+      }
+
+      // 兜底：同步填充仍失败的条目，后台重试补全 duration 并刷新 UI
+      const filesNeedingDuration = this.getDataArray().filter((f: FileInfo) => f.duration <= 0);
+      if (filesNeedingDuration.length > 0) {
+        HiLog.i(TAG, `Deferred fillDuration: ${filesNeedingDuration.length} files pending`);
+        setTimeout(async () => {
+          try {
+            await PublicStorageScanner.fillMissingDuration(filesNeedingDuration);
+            const updatedFiles = filesNeedingDuration.filter((f: FileInfo) => f.duration > 0);
+            for (const file of updatedFiles) {
+              await this.dbManager.updateMediaMetadata(file);
+            }
+            HiLog.i(TAG, `Background fillDuration complete: ${updatedFiles.length}/${filesNeedingDuration.length}, refreshing UI`);
+            this.notifyDataChanged();
+          } catch (error) {
+            HiLog.e(TAG, `Background fillDuration failed: ${error}`);
+          }
+        }, 0);
+      }
 
       HiLog.i(TAG, `Scan task ended: ${this.currentTaskId}, progress=${this.getScanProgress()}%`);
     } catch (error) {
@@ -1141,6 +1232,7 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
     const existingUris = new Set<string>();
     const existingPaths = new Set<string>();
     const existingNames = new Set<string>();
+    const existingCameraFolders = new Set<string>();
     for (let i = 0; i < dataArray.length; i++) {
       const existing = dataArray[i];
       const normUri = FileUtil.normalizeMediaUri(existing.uri);
@@ -1150,14 +1242,20 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
         existingPaths.add(path);
       }
       existingNames.add(existing.fileName);
+      const folderKey = MediaDataSource.getCameraVideoFolderKey(existing);
+      if (folderKey.length > 0) {
+        existingCameraFolders.add(folderKey);
+      }
     }
     const uniqueNewFiles: FileInfo[] = [];
     for (const newFile of newFiles) {
       const normUri = FileUtil.normalizeMediaUri(newFile.uri);
       const path = FileUtil.getPathFromUri(normUri);
+      const cameraFolder = MediaDataSource.getCameraVideoFolderKey(newFile);
       if (existingUris.has(normUri) ||
         (path.length > 0 && existingPaths.has(path)) ||
-        existingNames.has(newFile.fileName)) {
+        existingNames.has(newFile.fileName) ||
+        (cameraFolder.length > 0 && existingCameraFolders.has(cameraFolder))) {
         continue;
       }
       FileUtil.applyCanonicalMediaIdentity(newFile);
@@ -1166,6 +1264,9 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
         existingPaths.add(path);
       }
       existingNames.add(newFile.fileName);
+      if (cameraFolder.length > 0) {
+        existingCameraFolders.add(cameraFolder);
+      }
       uniqueNewFiles.push(newFile);
       dataArray.push(newFile);
     }
@@ -1437,6 +1538,38 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
     }
     this.notifyThumbnailUpdated(uri, fileInfo);
     HiLog.i(TAG, `Thumbnail updated: ${uri}, uri=${ThumbnailManager.getStoredUri(fileInfo)}`);
+  }
+
+  /**
+   * 启动缩略图后台生成并记录在途 Promise。
+   * 与直接调用 generateThumbnailsBackground 等价（fire-and-forget 语义不变，
+   * 各批次仍并发执行），但允许多批任务链式记录，
+   * 使扫描流程通过 awaitThumbnailGeneration() 能等到全部批次完成后再通知 UI。
+   */
+  public startThumbnailGeneration(items: FileInfo[]): void {
+    const task: Promise<void> = this.generateThumbnailsBackground(items);
+    const chain: Promise<void> = this.thumbnailGenerationPromise ? this.thumbnailGenerationPromise.then(() => {
+      return task;
+    }) : task;
+    this.thumbnailGenerationPromise = chain;
+    chain.then(() => {
+      if (this.thumbnailGenerationPromise === chain) {
+        this.thumbnailGenerationPromise = null;
+      }
+    }).catch(() => {
+      // 异常由 awaitThumbnailGeneration 的调用方兜底；此处仅避免未捕获 rejection
+    });
+  }
+
+  /**
+   * 等待全部在途的缩略图生成完成（循环排空，覆盖等待期间新启动的批次）。
+   */
+  public async awaitThumbnailGeneration(): Promise<void> {
+    while (this.thumbnailGenerationPromise) {
+      const task: Promise<void> = this.thumbnailGenerationPromise;
+      this.thumbnailGenerationPromise = null;
+      await task;
+    }
   }
 
   async generateThumbnailsBackground(items: FileInfo[]): Promise<void> {

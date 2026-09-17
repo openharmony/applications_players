@@ -32,6 +32,9 @@ export struct PlaylistView {
   @State popupVisible: boolean = false;
   @State popupTargetId: number = -1;
   private popupTargetItem: PlaylistItem = { id: -1, name: '', count: 0, coverUri: '' };
+  /** 长按/更多打开菜单后，抑制松手带来的 GridItem onClick 进详情 */
+  private suppressNextItemClick: boolean = false;
+  private suppressClickClearTimer: number = -1;
   onOpenDetail: (item: PlaylistItem) => void = () => {};
   onPlay: (item: PlaylistItem) => void = () => {};
   onRename: (item: PlaylistItem) => void = () => {};
@@ -41,13 +44,65 @@ export struct PlaylistView {
   onEnterSelectMode: (item: PlaylistItem) => void = () => {};
 
   aboutToDisappear(): void {
+    this.clearSuppressClickTimer();
     this.closePopup('aboutToDisappear');
   }
 
+  private clearSuppressClickTimer(): void {
+    if (this.suppressClickClearTimer >= 0) {
+      clearTimeout(this.suppressClickClearTimer);
+      this.suppressClickClearTimer = -1;
+    }
+  }
+
+  /** 清除“忽略下一次点击”状态（菜单关闭后必须清，否则会吞掉进详情的第一次点击） */
+  private clearSuppressNextItemClick(): void {
+    this.suppressNextItemClick = false;
+    this.clearSuppressClickTimer();
+  }
+
   /**
-   * ??????
+   * 仅「更多」打开菜单时抑制冒泡点击；长按靠 Exclusive，不再武装抑制
+   */
+  private armSuppressNextItemClick(): void {
+    this.suppressNextItemClick = true;
+    this.clearSuppressClickTimer();
+    this.suppressClickClearTimer = setTimeout(() => {
+      this.suppressNextItemClick = false;
+      this.suppressClickClearTimer = -1;
+    }, PlaylistConstants.GRID_MENU_SUPPRESS_CLICK_MS);
+  }
+
+  private consumeSuppressNextItemClick(): boolean {
+    if (!this.suppressNextItemClick) {
+      return false;
+    }
+    this.clearSuppressNextItemClick();
+    return true;
+  }
+
+  /**
+   * 宫格项点击：进详情；菜单已开时点同一张卡则仅收起
+   */
+  private handleGridItemClick(item: PlaylistItem): void {
+    if (this.consumeSuppressNextItemClick()) {
+      HiLog.i(TAG, `gridItemClick suppressed afterMenu id=${item.id}`);
+      return;
+    }
+    if (this.popupVisible && this.popupTargetId === item.id) {
+      HiLog.i(TAG, `gridItemClick dismissMenu id=${item.id}`);
+      this.closePopup('gridItemClickSame');
+      return;
+    }
+    HiLog.i(TAG, `gridItemClick id=${item.id}`);
+    this.closePopup('gridItemClick');
+    this.onOpenDetail(item);
+  }
+
+  /**
+   * 关闭菜单弹窗
    *
-   * @param phase ????
+   * @param phase 调用来源
    */
   private closePopup(phase: string): void {
     if (!this.popupVisible) {
@@ -56,18 +111,35 @@ export struct PlaylistView {
     HiLog.i(TAG, `closePopup phase=${phase} id=${this.popupTargetId}`);
     this.popupVisible = false;
     this.popupTargetId = -1;
+    this.clearSuppressNextItemClick();
   }
 
   /**
-   * ??????
-   *
-   * @param item ????
+   * 同步弹窗已消失（含 autoCancel 点空白收起）
    */
-  private openPopup(item: PlaylistItem): void {
-    HiLog.i(TAG, `openPopup id=${item.id}`);
+  private onPopupDisappear(): void {
+    HiLog.i(TAG, `popupDisappear id=${this.popupTargetId}`);
+    this.popupVisible = false;
+    this.popupTargetId = -1;
+    this.clearSuppressNextItemClick();
+  }
+
+  /**
+   * 打开歌单操作菜单
+   *
+   * @param item 目标歌单
+   * @param fromMore 是否来自右上角更多（需抑制冒泡 Tap）
+   */
+  private openPopup(item: PlaylistItem, fromMore: boolean = false): void {
+    HiLog.i(TAG, `openPopup id=${item.id} fromMore=${fromMore}`);
     this.popupTargetItem = item;
     this.popupTargetId = item.id;
     this.popupVisible = true;
+    if (fromMore) {
+      this.armSuppressNextItemClick();
+    } else {
+      this.clearSuppressNextItemClick();
+    }
   }
 
   /** ?????????? popupTargetItem? */
@@ -148,7 +220,7 @@ export struct PlaylistView {
           PlaylistCard({
             item: item,
             onMoreClick: () => {
-              this.openPopup(item);
+              this.openPopup(item, true);
             }
           })
         }
@@ -163,22 +235,27 @@ export struct PlaylistView {
           autoCancel: true,
           onStateChange: (event: PopupStateEvent) => {
             if (!event.isVisible) {
-              HiLog.i(TAG, `popupDisappear id=${this.popupTargetId}`);
-              this.popupVisible = false;
-              this.popupTargetId = -1;
+              this.onPopupDisappear();
             }
           }
         })
-        .parallelGesture(
+        .gesture(
           GestureGroup(GestureMode.Parallel,
-            LongPressGesture({
-              repeat: false,
-              duration: PlaylistConstants.DETAIL_TRACK_LONG_PRESS_DURATION_MS
-            })
-              .onAction(() => {
-                HiLog.i(TAG, `longPress openMenu id=${item.id}`);
-                this.openPopup(item);
-              }),
+            // Exclusive：长按识别成功后不再触发 Tap，避免松手关掉菜单
+            GestureGroup(GestureMode.Exclusive,
+              TapGesture({ count: 1 })
+                .onAction(() => {
+                  this.handleGridItemClick(item);
+                }),
+              LongPressGesture({
+                repeat: false,
+                duration: PlaylistConstants.DETAIL_TRACK_LONG_PRESS_DURATION_MS
+              })
+                .onAction(() => {
+                  HiLog.i(TAG, `longPress openMenu id=${item.id}`);
+                  this.openPopup(item, false);
+                })
+            ),
             PanGesture({
               fingers: 1,
               distance: PlaylistConstants.GRID_MENU_DRAG_CLOSE_PAN_DISTANCE
@@ -193,11 +270,6 @@ export struct PlaylistView {
           ),
           GestureMask.Normal
         )
-        .onClick(() => {
-          HiLog.i(TAG, `gridItemClick id=${item.id}`);
-          this.closePopup('gridItemClick');
-          this.onOpenDetail(item);
-        })
       }, (item: PlaylistItem) => `pl_${item.id}_${item.name}_${item.count}_${item.coverUri}`)
     }
     .id('playlist_grid')

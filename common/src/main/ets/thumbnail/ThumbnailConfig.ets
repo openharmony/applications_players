@@ -18,7 +18,7 @@ export class ThumbnailConfig {
   private static readonly BYTES_IN_MB = 1024 * 1024;
   private static readonly BYTES_IN_GB = 1024 * 1024 * 1024;
 
-  static readonly THUMBNAIL_SIZE = 200;
+  static readonly THUMBNAIL_SIZE = 512;
 
   static readonly IMAGE_QUALITY = 90;
   static readonly IMAGE_FORMAT = 'image/jpeg';
@@ -38,11 +38,11 @@ export class ThumbnailConfig {
   static readonly MAX_IMAGE_ASPECT_RATIO = 16 / 9;
   /** 首页宫格封面宽高比，与 MediaGridItem 16:9 容器一致 */
   static readonly VIDEO_COVER_RATIO = 16 / 9;
-  /** 视频 16:9 缩略图缓存键后缀，比例变更后使旧 1:1 缓存失效 */
-  static readonly VIDEO_THUMB_CACHE_SUFFIX = '_ar169';
+  /** 视频 16:9 缩略图缓存键后缀，尺寸/比例变更后使旧缓存失效 */
+  static readonly VIDEO_THUMB_CACHE_SUFFIX = '_ar169_512x288';
   /** 视频缩略图提取/输出尺寸（宽 × 高） */
-  static readonly VIDEO_THUMB_WIDTH = 356;
-  static readonly VIDEO_THUMB_HEIGHT = 200;
+  static readonly VIDEO_THUMB_WIDTH = 512;
+  static readonly VIDEO_THUMB_HEIGHT = 288;
 
   static readonly THUMBNAIL_CACHE_FOLDER_NAME = 'thumbnail';
   static readonly DEFAULT_STORAGE_DEVICE_UID = 'localDevice';

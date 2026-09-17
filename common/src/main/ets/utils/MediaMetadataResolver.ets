@@ -19,6 +19,7 @@ import { HiLog } from './HiLog';
 import { FileInfo } from '../utils/FileOperateInfo';
 import { SupportedMediaFormats } from '../constants/media/SupportedMediaFormats';
 import { MediaPlaybackFileOpener } from './MediaPlaybackFileOpener';
+import { Mp3DurationScanner } from './Mp3DurationScanner';
 
 const TAG = 'MediaMetadataResolver';
 
@@ -28,8 +29,23 @@ const TAG = 'MediaMetadataResolver';
  */
 export class MediaMetadataResolver {
   static async fillDuration(fileInfo: FileInfo): Promise<void> {
-    if (fileInfo.duration > 0) {
+    const isMp3 = Mp3DurationScanner.isMp3File(fileInfo.fileName);
+    if (fileInfo.duration > 0 && !isMp3) {
       return;
+    }
+    if (isMp3) {
+      // mp3 优先帧头扫描拿精确时长（VBR 无 Xing 头文件按首帧码率估算会偏短）；
+      // 已入库的旧估算值也在此刷新为精确值
+      const exact = await Mp3DurationScanner.scanExactDurationMs(fileInfo);
+      if (exact > 0) {
+        fileInfo.duration = exact;
+        HiLog.i(TAG, `fillDuration mp3 exact fileName=${fileInfo.fileName} duration=${exact}`);
+        return;
+      }
+      if (fileInfo.duration > 0) {
+        // 扫描不可信时保留已入库时长，不进入估算链路覆盖
+        return;
+      }
     }
 
     const isVideo = SupportedMediaFormats.isSupportedVideo(fileInfo.fileName);

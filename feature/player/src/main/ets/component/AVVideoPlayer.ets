@@ -90,9 +90,6 @@ export struct AVVideoPlayer {
         .width(Constants.ALL_PERCENT)
         .height(Constants.ALL_PERCENT)
         .clip(true)
-      Text()
-        .focusable(true)
-        .tabIndex(-1)
 
       // 叠层遮绿：不改变视频布局宽高比
       if (this.cropBottomGreenEdge) {
@@ -110,7 +107,6 @@ export struct AVVideoPlayer {
     .height(Constants.ALL_PERCENT)
     // conceal 时才垫黑底；常态透明，避免 PiP 迁窗后四周黑遮罩
     .backgroundColor(this.concealSurface ? Color.Black : Color.Transparent)
-    .clip(true)
     .renderGroup(this.breakHwcCompose || this.cropBottomGreenEdge)
   }
 }

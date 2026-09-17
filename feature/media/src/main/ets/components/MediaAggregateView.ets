@@ -20,6 +20,7 @@ import { FontScaleUtil } from '@ohos/common/src/main/ets/utils/FontScaleUtil';
 import { EmptyStateView } from '@ohos/common/src/main/ets/component/EmptyStateView';
 import { SwipeDeleteEndAction } from '@ohos/common/src/main/ets/component/SwipeDeleteEndAction';
 import { SwipeDeleteUtil } from '@ohos/common/src/main/ets/utils/SwipeDeleteUtil';
+import { MediaItemDisplayUtil } from '@ohos/common/src/main/ets/utils/MediaItemDisplayUtil';
 import { MediaGridItem } from './MediaGridItem';
 import { MediaAggregateListItem } from './MediaAggregateListItem';
 import { MediaHomeEmptyState } from './MediaHomeEmptyState';
@@ -31,6 +32,15 @@ import { HiLog } from '@ohos/common/src/main/ets/utils/HiLog';
 
 
 const TAG = 'MediaAggregateView';
+
+/**
+ * LazyForEach key 版本后缀：条目仅显示占位封面时使用。
+ * 当缩略图生成完成、hasCustomThumbnail 返回 true 时翻转至 LAZY_KEY_VERSION_CUSTOM_THUMBNAIL，
+ * 使 LazyForEach 视作新 key 触发条目重建（aboutToReuseInternal 路径），从而更新封面显示。
+ */
+const LAZY_KEY_VERSION_PLACEHOLDER_THUMBNAIL: string = '#0';
+/** LazyForEach key 版本后缀：条目已加载自定义封面时使用。 */
+const LAZY_KEY_VERSION_CUSTOM_THUMBNAIL: string = '#1';
 
 /** 列表项的全局矩形（vp），供拖动滑选命中测试使用 */
 interface ItemRect {
@@ -675,7 +685,9 @@ export struct MediaAggregateView {
           )
         )
       }
-    }, (media: FileInfo) => media.uri)
+    }, (media: FileInfo) => media.uri +
+      (MediaItemDisplayUtil.hasCustomThumbnail(media) ? LAZY_KEY_VERSION_CUSTOM_THUMBNAIL :
+        LAZY_KEY_VERSION_PLACEHOLDER_THUMBNAIL))
   }
 
 
@@ -866,7 +878,7 @@ export struct MediaAggregateView {
   buildListItems() {
     LazyForEach(this.dataSource, (media: FileInfo, _index: number) => {
       this.buildMediaListItem(media, !this.isSelectionMode)
-    }, (media: FileInfo) => media.uri)
+    }, (media: FileInfo) => media.uri + (MediaItemDisplayUtil.hasCustomThumbnail(media) ? LAZY_KEY_VERSION_CUSTOM_THUMBNAIL : LAZY_KEY_VERSION_PLACEHOLDER_THUMBNAIL))
   }
 
   /** 多选列表：容器级 Pan 涂选 */

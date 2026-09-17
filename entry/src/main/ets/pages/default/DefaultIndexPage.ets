@@ -39,7 +39,7 @@ interface SortOptionItem {
 /**
  * 首页 View：绑定 HomeViewModel，搜索/设置/播放器由 NavPathStack 承载。
  */
-@Component
+@Component({ freezeWhenInactive: true })
 export struct DefaultIndexPage {
   @State showSortDialog: boolean = false;
   @State menuDismissSignal: number = 0;
@@ -325,57 +325,50 @@ export struct DefaultIndexPage {
   }
 
   build() {
-    Stack() {
-      Column() {
-        this.Header()
-        MediaAggregateView({
-          mediaType: this.mediaType,
-          isLoading: this.isMediaLoading,
-          hasMediaItems: this.hasMediaItems,
-          showPermissionTip: this.showMediaPermissionTip,
-          isRequestingPermission: this.isRequestingMediaPermission,
-          loadingHintText: this.mediaLoadingHint,
-          showScanProgressDetail: this.showMediaScanProgress,
-          mediaItems: this.mediaItems,
-          listItemIsAudio: this.listItemIsAudio,
-          listRevision: this.listRevision,
-          fontScale: this.fontScale,
-          isGridView: $isGridView,
-          homeLayoutStyle: true,
-          homeEmptyTitle: $r('app.string.media_empty_title'),
-          homeEmptyHint: $r('app.string.media_empty_hint'),
-          permissionTipText: this.usePartialPermissionTip
-            ? $r('app.string.media_permission_tip_partial')
-            : $r('app.string.media_permission_tip'),
-          permissionGrantText: $r('app.string.media_permission_grant'),
-          loadingDefaultText: $r('app.string.media_loading'),
-          onRequestPermission: () => {
-            this.homeViewModel.requestMediaPermission();
-          },
-          onMediaClick: (fileInfo: FileInfo) => {
-            this.homeViewModel.playFromFileInfo(fileInfo);
-          },
-          onSwipeDeleteMedia: (fileInfo: FileInfo) => {
-            void this.homeViewModel.deleteMediaBySwipe(fileInfo.uri);
-          }
-        })
-          .width('100%')
-          .layoutWeight(1)
-      }
-      .width('100%')
-      .height('100%')
-      .backgroundColor(HomeViewConstants.PAGE_BACKGROUND)
-
+    Column() {
+      this.Header()
+      MediaAggregateView({
+        mediaType: this.mediaType,
+        isLoading: this.isMediaLoading,
+        hasMediaItems: this.hasMediaItems,
+        showPermissionTip: this.showMediaPermissionTip,
+        isRequestingPermission: this.isRequestingMediaPermission,
+        loadingHintText: this.mediaLoadingHint,
+        showScanProgressDetail: this.showMediaScanProgress,
+        mediaItems: this.mediaItems,
+        listItemIsAudio: this.listItemIsAudio,
+        listRevision: this.listRevision,
+        fontScale: this.fontScale,
+        isGridView: $isGridView,
+        homeLayoutStyle: true,
+        homeEmptyTitle: $r('app.string.media_empty_title'),
+        homeEmptyHint: $r('app.string.media_empty_hint'),
+        permissionTipText: this.usePartialPermissionTip
+          ? $r('app.string.media_permission_tip_partial')
+          : $r('app.string.media_permission_tip'),
+        permissionGrantText: $r('app.string.media_permission_grant'),
+        loadingDefaultText: $r('app.string.media_loading'),
+        onRequestPermission: () => {
+          this.homeViewModel.requestMediaPermission();
+        },
+        onMediaClick: (fileInfo: FileInfo) => {
+          this.homeViewModel.playFromFileInfo(fileInfo);
+        },
+        onSwipeDeleteMedia: (fileInfo: FileInfo) => {
+          void this.homeViewModel.deleteMediaBySwipe(fileInfo.uri);
+        }
+      })
+        .width('100%')
+        .layoutWeight(1)
     }
+    .width('100%')
+    .height('100%')
+    .backgroundColor(HomeViewConstants.PAGE_BACKGROUND)
   }
 
   @Builder
   Header() {
-    Column() {
-      this.NormalHeader()
-    }
-    .width('100%')
-    .backgroundColor(HomeViewConstants.PAGE_BACKGROUND)
+    this.NormalHeader()
   }
 
   /** 常规顶栏（标题 + 搜索/导入/更多菜单 + 分类 Tab） */

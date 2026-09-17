@@ -1189,7 +1189,7 @@ export class PlaylistViewModel {
   }
 
   /**
-   * 添加音频页过滤：与首页搜索相同的前缀 / 拼音首字母匹配逻辑
+   * 添加音频页过滤：与首页搜索相同的包含 / 拼音匹配逻辑
    */
   private applyAddAudioFilter(): void {
     const keywords: string[] = SearchScorer.parseKeywords(this.addAudioAppliedKeyword);

@@ -14,8 +14,7 @@
  */
 
 /** 测试文件
- * 完整覆盖了搜索匹配和高亮的核心行为，包括英文前缀匹配、中文拼音（全拼和首字母）匹配、中英文混合匹配、高亮范围动态同步以及前缀匹配拒绝中间匹配等关键场景
- * 是确保搜索功能准确性和状态同步的质量保障
+ * 覆盖搜索匹配和高亮：英文/中文拼音（全拼和首字母）、中英文混合、高亮随输入伸缩，以及中间包含命中
  */
 
 import { describe, it, expect } from '@ohos/hypium';
@@ -118,14 +117,21 @@ export default function SearchMatchEngineTest() {
       expect(highlight3).assertEqual('刘');
     });
 
-    it('MATCH_06_prefix_only_rejects_middle_match', 0, () => {
-      // 「德」在中间：单独输入 d 不应命中（非前缀）
+    it('MATCH_06_contains_matches_middle', 0, () => {
       const mid: KeywordMatchResult = SearchMatchEngine.matchText('刘德华', 'd');
-      expect(mid.matched).assertFalse();
+      expect(mid.matched).assertTrue();
+      expect(mid.ranges[0].start).assertEqual(1);
+      expect(mid.ranges[0].end).assertEqual(2);
 
-      // 英文中间片段也不应命中
       const engMid: KeywordMatchResult = SearchMatchEngine.matchText('lletter_video', 'video');
-      expect(engMid.matched).assertFalse();
+      expect(engMid.matched).assertTrue();
+      expect(engMid.ranges[0].start).assertEqual(8);
+      expect(engMid.ranges[0].end).assertEqual(13);
+
+      const de: KeywordMatchResult = SearchMatchEngine.matchText('刘德华', 'de');
+      expect(de.matched).assertTrue();
+      expect(de.ranges[0].start).assertEqual(1);
+      expect(de.ranges[0].end).assertEqual(2);
 
       const ranges: HighlightRange[] = SearchMatchEngine.collectHighlightRanges('刘德华', ['ld']);
       expect(ranges.length).assertEqual(1);

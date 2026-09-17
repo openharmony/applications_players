@@ -39,6 +39,8 @@ export class VideoPipViewModel implements IVideoPipSystemLockDelegate {
   private xComponentController: XComponentController | undefined = undefined;
   private hostContext: Context | undefined = undefined;
   private contentSizeProvider: VideoPipContentSizeProvider | undefined = undefined;
+  /** Navigation 组件 id，PiP 还原与控制面板依赖 */
+  private navigationId: string = 'players_main_navigation';
   private pipSessionActive: boolean = false;
   private autoPipArmed: boolean = false;
   private phoneCallSuspended: boolean = false;
@@ -81,11 +83,16 @@ export class VideoPipViewModel implements IVideoPipSystemLockDelegate {
    *
    * @param context UIAbility 上下文
    * @param contentSizeProvider 返回当前视频内容宽高的回调
+   * @param navigationId 可选，对应 MainPage Navigation.id，缺省 players_main_navigation
    */
-  public bindHost(context: Context, contentSizeProvider: VideoPipContentSizeProvider): void {
+  public bindHost(context: Context, contentSizeProvider: VideoPipContentSizeProvider,
+    navigationId: string = 'players_main_navigation'): void {
     this.hostContext = context;
     this.contentSizeProvider = contentSizeProvider;
-    HiLog.i(TAG, `bindHost pipEnabled=${PiPWindow.isPiPEnabled()}`);
+    if (navigationId.length > 0) {
+      this.navigationId = navigationId;
+    }
+    HiLog.i(TAG, `bindHost pipEnabled=${PiPWindow.isPiPEnabled()} navigationId=${this.navigationId}`);
   }
 
   /**
@@ -384,12 +391,19 @@ export class VideoPipViewModel implements IVideoPipSystemLockDelegate {
       return false;
     }
     const size = this.resolveContentSize();
+    // controlGroups 为空时系统只显示强制播控（播放/暂停），上一曲/下一曲会缺失。
+    // VIDEO_PREVIOUS_NEXT 与 FAST_FORWARD_BACKWARD 互斥，视频页核心簇为上一/下一，选前者。
+    const controlGroups: Array<PiPWindow.PiPControlGroup> = [
+      PiPWindow.VideoPlayControlGroup.VIDEO_PREVIOUS_NEXT
+    ];
     const config: PiPWindow.PiPConfiguration = {
       context: this.hostContext,
       componentController: this.xComponentController,
+      navigationId: this.navigationId,
       templateType: PiPWindow.PiPTemplateType.VIDEO_PLAY,
       contentWidth: size.width,
       contentHeight: size.height,
+      controlGroups: controlGroups
     };
     try {
       this.pipController = await PiPWindow.create(config);
@@ -398,12 +412,46 @@ export class VideoPipViewModel implements IVideoPipSystemLockDelegate {
       this.pipController.on('pipWindowSizeChange', this.pipWindowSizeChangeHandler);
       this.lastContentWidth = size.width;
       this.lastContentHeight = size.height;
-      HiLog.i(TAG, `ensurePipController success width=${size.width} height=${size.height}`);
+      this.syncPipOptionalControlsEnabled();
+      HiLog.i(TAG,
+        `ensurePipController success width=${size.width} height=${size.height} ` +
+          `navigationId=${this.navigationId} controlGroups=VIDEO_PREVIOUS_NEXT`);
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const code = (error as BusinessError).code;
       HiLog.e(TAG, `ensurePipController failed code=${code} message=${message}`);
+      // 带 controlGroups 创建失败时回退仅强制播控，保证仍能进画中画
+      return await this.ensurePipControllerFallback(size);
+    }
+  }
+
+  /** controlGroups 创建失败时的降级创建（仅播放/暂停） */
+  private async ensurePipControllerFallback(size: VideoPipContentSize): Promise<boolean> {
+    if (this.xComponentController === undefined || this.hostContext === undefined) {
+      return false;
+    }
+    const config: PiPWindow.PiPConfiguration = {
+      context: this.hostContext,
+      componentController: this.xComponentController,
+      navigationId: this.navigationId,
+      templateType: PiPWindow.PiPTemplateType.VIDEO_PLAY,
+      contentWidth: size.width,
+      contentHeight: size.height
+    };
+    try {
+      this.pipController = await PiPWindow.create(config);
+      this.pipController.on('stateChange', this.stateChangeHandler);
+      this.pipController.on('controlEvent', this.controlEventHandler);
+      this.pipController.on('pipWindowSizeChange', this.pipWindowSizeChangeHandler);
+      this.lastContentWidth = size.width;
+      this.lastContentHeight = size.height;
+      HiLog.w(TAG, 'ensurePipControllerFallback success without optional controlGroups');
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const code = (error as BusinessError).code;
+      HiLog.e(TAG, `ensurePipControllerFallback failed code=${code} message=${message}`);
       this.pipController = undefined;
       return false;
     }
@@ -479,6 +527,7 @@ export class VideoPipViewModel implements IVideoPipSystemLockDelegate {
       this.syncBackgroundExempt();
       this.syncPlaybackControlState(this.videoController.playState);
       this.tryResumeAfterLockOnDesktop();
+      this.syncPipOptionalControlsEnabled();
       // 动画停稳后再动视觉标记
       this.endPipTransitionQuietAfterSettle((): void => {
         if (this.pipSessionActive) {
@@ -555,6 +604,40 @@ export class VideoPipViewModel implements IVideoPipSystemLockDelegate {
       } else if (control.status === PiPWindow.PiPControlStatus.PLAY) {
         this.videoController.play();
       }
+      return;
+    }
+    if (control.controlType === PiPWindow.PiPControlType.VIDEO_PREVIOUS) {
+      this.videoController.skipToPreviousTrack();
+      this.syncPipOptionalControlsEnabled();
+      return;
+    }
+    if (control.controlType === PiPWindow.PiPControlType.VIDEO_NEXT) {
+      this.videoController.skipToNextTrack();
+      this.syncPipOptionalControlsEnabled();
+      return;
+    }
+    if (control.controlType === PiPWindow.PiPControlType.FAST_FORWARD) {
+      this.videoController.skipForward15Seconds();
+      return;
+    }
+    if (control.controlType === PiPWindow.PiPControlType.FAST_BACKWARD) {
+      this.videoController.skipBackward15Seconds();
+    }
+  }
+
+  /** 启用 PiP 播控：播放/暂停 + 上一曲/下一曲 */
+  private syncPipOptionalControlsEnabled(): void {
+    if (this.pipController === undefined) {
+      return;
+    }
+    try {
+      this.pipController.setPiPControlEnabled(PiPWindow.PiPControlType.VIDEO_PLAY_PAUSE, true);
+      this.pipController.setPiPControlEnabled(PiPWindow.PiPControlType.VIDEO_PREVIOUS, true);
+      this.pipController.setPiPControlEnabled(PiPWindow.PiPControlType.VIDEO_NEXT, true);
+      HiLog.i(TAG, 'syncPipOptionalControlsEnabled playPause/prev/next=true');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      HiLog.w(TAG, `syncPipOptionalControlsEnabled failed message=${message}`);
     }
   }
 

@@ -15,9 +15,7 @@
 
 import { Constants } from '@ohos/common/src/main/ets/constants/ui/Constants';
 import { AVPlayerController } from '../controller/AVPlayerController';
-
-const GESTURE_PILL_HEIGHT: number = 160;
-const GESTURE_PILL_WIDTH: number = 48;
+import { PlayerUiConstants } from '../constants/PlayerUiConstants';
 
 /** 视频区左侧亮度 / 右侧音量手势进度浮层 */
 @Component
@@ -41,24 +39,24 @@ export struct VolumeAndBrightProgress {
       Stack({ alignContent: Alignment.Bottom }) {
         Column()
           .width(4)
-          .height(GESTURE_PILL_HEIGHT)
+          .height(PlayerUiConstants.GESTURE_PILL_HEIGHT)
           .backgroundColor('rgba(255,255,255,0.25)')
           .borderRadius(2)
 
         Column()
           .width(4)
-          .height(Math.max(4, GESTURE_PILL_HEIGHT * this.bright))
+          .height(Math.max(4, PlayerUiConstants.GESTURE_PILL_HEIGHT * this.bright))
           .backgroundColor(Color.White)
           .borderRadius(2)
           .animation({ duration: 0 })
       }
       .width(4)
-      .height(GESTURE_PILL_HEIGHT)
+      .height(PlayerUiConstants.GESTURE_PILL_HEIGHT)
     }
-    .width(GESTURE_PILL_WIDTH)
+    .width(PlayerUiConstants.GESTURE_PILL_WIDTH)
     .padding({ top: 16, bottom: 16, left: 12, right: 12 })
     .backgroundColor($r('app.color.player_gesture_pill_bg'))
-    .borderRadius(GESTURE_PILL_WIDTH / 2)
+    .borderRadius(PlayerUiConstants.GESTURE_PILL_WIDTH / 2)
   }
 
   /** 音量 pill：Builder 内直接读 @Link volumePercentage */
@@ -73,24 +71,24 @@ export struct VolumeAndBrightProgress {
       Stack({ alignContent: Alignment.Bottom }) {
         Column()
           .width(4)
-          .height(GESTURE_PILL_HEIGHT)
+          .height(PlayerUiConstants.GESTURE_PILL_HEIGHT)
           .backgroundColor('rgba(255,255,255,0.25)')
           .borderRadius(2)
 
         Column()
           .width(4)
-          .height(Math.max(4, GESTURE_PILL_HEIGHT * this.volumePercentage))
+          .height(Math.max(4, PlayerUiConstants.GESTURE_PILL_HEIGHT * this.volumePercentage))
           .backgroundColor(Color.White)
           .borderRadius(2)
           .animation({ duration: 0 })
       }
       .width(4)
-      .height(GESTURE_PILL_HEIGHT)
+      .height(PlayerUiConstants.GESTURE_PILL_HEIGHT)
     }
-    .width(GESTURE_PILL_WIDTH)
+    .width(PlayerUiConstants.GESTURE_PILL_WIDTH)
     .padding({ top: 16, bottom: 16, left: 12, right: 12 })
     .backgroundColor($r('app.color.player_gesture_pill_bg'))
-    .borderRadius(GESTURE_PILL_WIDTH / 2)
+    .borderRadius(PlayerUiConstants.GESTURE_PILL_WIDTH / 2)
   }
 
   build() {
@@ -101,7 +99,7 @@ export struct VolumeAndBrightProgress {
       .width('100%')
       .height('100%')
       .justifyContent(FlexAlign.Start)
-      .padding({ left: 32 })
+      .padding({ left: 40 })
       .visibility(this.showBrightnessProgress ? Visibility.Visible : Visibility.Hidden)
       .hitTestBehavior(HitTestMode.None)
 

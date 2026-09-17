@@ -66,11 +66,6 @@ export struct MediaGridItem {
     this.refreshDisplayData();
   }
 
-  aboutToUpdate(): void {
-    HiLog.i(TAG, 'aboutToUpdate');
-    this.refreshDisplayData();
-  }
-
   /** 在生命周期内汇总展示字段，避免 build / @Builder 中调用工具函数 */
   private refreshDisplayData(): void {
     this.formatLabel = MediaItemDisplayUtil.getFormatLabel(this.media);
@@ -86,10 +81,11 @@ export struct MediaGridItem {
     this.durationBadgeBg = MediaItemDisplayUtil.isAudio(this.media) ?
       MediaViewUiConstants.AUDIO_DURATION_BADGE_BG : MediaViewUiConstants.VIDEO_DURATION_BADGE_BG;
 
-    this.formatFontSize = FontScaleUtil.scaleFont(MediaViewUiConstants.FORMAT_BADGE_FONT_BASE, this.fontScale);
-    this.durationFontSize = FontScaleUtil.scaleFont(MediaViewUiConstants.HOME_DURATION_FONT_BASE, this.fontScale);
-    this.nameFontSize = FontScaleUtil.scaleFont(MediaViewUiConstants.HOME_NAME_FONT_BASE, this.fontScale);
-    this.sizeFontSize = FontScaleUtil.scaleFont(MediaViewUiConstants.HOME_SIZE_FONT_BASE, this.fontScale);
+    // 角标用 vp（封面固定）；文件名/大小用基数字号由系统 fp 跟随，避免 scaleFont 双重放大
+    this.formatFontSize = MediaViewUiConstants.FORMAT_BADGE_FONT_BASE;
+    this.durationFontSize = MediaViewUiConstants.HOME_DURATION_FONT_BASE;
+    this.nameFontSize = MediaViewUiConstants.HOME_NAME_FONT_BASE;
+    this.sizeFontSize = MediaViewUiConstants.HOME_SIZE_FONT_BASE;
   }
 
   build() {
@@ -99,8 +95,8 @@ export struct MediaGridItem {
 
         Column() {
           Text(this.formatLabel)
-            .fontSize(this.formatFontSize)
-            .fontWeight(FontWeight.Bold)
+            .fontSize(FontScaleUtil.chromeSize(this.formatFontSize))
+            .fontWeight(FontWeight.Medium)
             .fontColor(MediaViewUiConstants.COLOR_FORMAT_BADGE_TEXT)
             .padding({
               left: MediaViewUiConstants.FORMAT_BADGE_PADDING_H,
@@ -124,8 +120,8 @@ export struct MediaGridItem {
 
         Column() {
           Text(this.durationText)
-            .fontSize(this.durationFontSize)
-            .fontWeight(500)
+            .fontSize(FontScaleUtil.chromeSize(this.durationFontSize))
+            .fontWeight(FontWeight.Medium)
             .fontColor(MediaViewUiConstants.COLOR_FORMAT_BADGE_TEXT)
             .padding({
               left: MediaViewUiConstants.DURATION_BADGE_PADDING_H,
@@ -189,9 +185,9 @@ export struct MediaGridItem {
       Column({ space: MediaViewUiConstants.HOME_TEXT_BLOCK_SPACE }) {
         Text(this.fileName)
           .fontSize(this.nameFontSize)
-          .fontWeight(600)
+          .fontWeight(FontWeight.Medium)
           .fontColor(MediaViewUiConstants.COLOR_FILE_NAME)
-          .maxLines(1)
+          .maxLines(2)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .width('100%')
 

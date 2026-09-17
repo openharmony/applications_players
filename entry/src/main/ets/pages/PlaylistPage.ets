@@ -40,7 +40,7 @@ const TAG = 'PlaylistPage';
 /**
  * 播放列表 Tab 根页面：列表层 + CustomDialog；详情/编辑/添加音频由 NavPathStack 承载
  */
-@Component
+@Component({ freezeWhenInactive: true })
 export struct PlaylistPage {
   @State isEmpty: boolean = true;
   /** CustomContentDialog 内容区状态 */
@@ -127,6 +127,7 @@ export struct PlaylistPage {
             role: ButtonRole.NORMAL,
             action: () => {
               if (this.nameDialogInputName.length === 0) {
+                this.viewModel.closeNameDialog();
                 return;
               }
               HiLog.i(TAG, `name dialog confirm name=${this.nameDialogInputName}`);

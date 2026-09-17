@@ -84,21 +84,6 @@ export class MediaAggregateViewModel implements IMediaListAccess {
     // 若此时 notifyDataChanged 会导致 UI 先闪一下空状态再显示 DB 缓存数据。
     // loadMediaFiles 完成后会清除该标志并统一通知一次。
     this.mediaDataSource.setSuppressDataNotification(true);
-    this.mediaFileScanner = new MediaFileScanner(context);
-
-    this.sortPreference.init(context);
-    this.currentSortType = this.sortPreference.getSortType();
-    this.isDesc = this.sortPreference.getIsDesc();
-
-    // 关键修复：在数据加载前设置 MediaDataSource 的排序偏好
-    // 确保 setData() 的自动排序使用正确的偏好，而非默认值 (DATE desc)
-    // 避免初始加载先用默认排序再修正导致的视觉闪烁
-    this.mediaDataSource.setSortPreference(this.currentSortType, this.isDesc);
-
-    // 立即检查 AppStorage 是否有 want.parameters 覆盖
-    this.applySortFromAppStorage();
-    HiLog.i(TAG, `Sort preference: ${this.currentSortType}, isDesc: ${this.isDesc}`);
-
     const permissionMgr = MediaPermissionManager.getInstance();
 
     this.permissionListenerId = Date.now();
@@ -133,33 +118,39 @@ export class MediaAggregateViewModel implements IMediaListAccess {
       HiLog.e(TAG, `StorageDeviceManager initialization failed: ${error.message}`);
     });
 
-    // Initialize FileMonitor for automatic file detection → database sync → UI refresh
+    // ① 排序偏好：必须在数据加载前完成初始化
+    this.sortPreference.init(context);
+    this.currentSortType = this.sortPreference.getSortType();
+    this.isDesc = this.sortPreference.getIsDesc();
+    // 确保 MediaDataSource 在 loadMediaFiles 前获得正确的排序偏好
+    this.mediaDataSource?.setSortPreference(this.currentSortType, this.isDesc);
+    this.applySortFromAppStorage();
+    HiLog.i(TAG, `Sort pref: sortType=${this.currentSortType} isDesc=${this.isDesc}`);
+
+    // ② 文件扫描器：用于手动扫描/导入
+    this.mediaFileScanner = new MediaFileScanner(context);
+
+    // ③ 文件监控：运行时增量检测
     try {
       this.fileMonitor = new FileMonitor(context);
 
-      // Define callback class for ArkTS compatibility
       class ViewModelMonitorCallback implements MonitorCallback {
         private viewModel: MediaAggregateViewModel;
-        
+
         constructor(viewModel: MediaAggregateViewModel) {
           this.viewModel = viewModel;
         }
-        
+
         onBatchFileChanged(event: FileChangeEvent): void {
           HiLog.i(TAG, `Batch file change detected, events: ${event.getEventCount()}`);
-          // 增量刷新：从 DB 查询新文件并插入到正确位置，避免全量扫描导致列表重排
-          // FileSyncEngine 已将新文件保存到 DB，直接查询 DB 即可获取最新数据
           if (this.viewModel.mediaDataSource) {
             this.viewModel.mediaDataSource.incrementalRefresh().catch((err: Error) => {
               HiLog.e(TAG, `Incremental refresh after batch file change failed: ${err.message}`);
             });
           }
         }
-        
+
         onSyncComplete(count: number): void {
-          // 增量刷新：从 DB 查询新文件并插入到正确位置
-          // mediatool 导入走 userFileManager 路径，不会触发 onBatchFileChanged
-          // 所以 onSyncComplete 必须也触发增量刷新
           if (count > 0 && this.viewModel.mediaDataSource) {
             this.viewModel.mediaDataSource.incrementalRefresh().catch((err: Error) => {
               HiLog.e(TAG, `Incremental refresh after file sync failed: ${err.message}`);
@@ -170,14 +161,11 @@ export class MediaAggregateViewModel implements IMediaListAccess {
 
       this.fileMonitor.startMonitor(new ViewModelMonitorCallback(this)).then(async () => {
         HiLog.i(TAG, 'FileMonitor started successfully - automatic file detection enabled');
-        
-        // Add sandbox directories to watch after startMonitor completes
         const sandboxDirs = this.getSandboxDirectories();
         const publicStorageDirs = PublicStorageScanner.resolveAccessibleDirectories();
         const watchDirs = [...sandboxDirs, ...publicStorageDirs];
         HiLog.i(TAG, `Adding ${watchDirs.length} directories to watch (sandbox=${sandboxDirs.length}, ` +
           `publicFs=${publicStorageDirs.length})`);
-        
         for (const dir of watchDirs) {
           try {
             const success = await this.fileMonitor!.addWatchDirectory(dir);
@@ -198,6 +186,7 @@ export class MediaAggregateViewModel implements IMediaListAccess {
       const errMsg = error instanceof Error ? error.message : String(error);
       HiLog.e(TAG, `FileMonitor initialization error: ${errMsg}`);
     }
+
     this.isInitialized = true;  // 标记初始化完成，使 isReady() 返回 true
     HiLog.i(TAG, 'MediaAggregateViewModel initialization completed');
   }

@@ -31,7 +31,7 @@ export class MediaViewUiConstants {
   static readonly COLOR_FILE_META: Resource = AppThemeConstants.TEXT_SECONDARY;
   static readonly COLOR_EMPTY_ICON: Resource = AppThemeConstants.TEXT_TERTIARY;
 
-  static readonly AUDIO_DURATION_BADGE_BG: string = 'rgba(255,255,255,0.35)';
+  static readonly AUDIO_DURATION_BADGE_BG: string = 'rgba(0,0,0,0.45)';
   static readonly VIDEO_DURATION_BADGE_BG: string = 'rgba(0,0,0,0.45)';
   static readonly DEFAULT_DURATION_BADGE_BG: string = 'rgba(0, 0, 0, 0.6)';
 

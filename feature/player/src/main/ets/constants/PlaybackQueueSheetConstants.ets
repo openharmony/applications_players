@@ -110,7 +110,8 @@ export class PlaybackQueueSheetConstants {
   static readonly ROW_ACTION_HIT_SIZE: number = 28;
   static readonly ROW_TITLE_COLOR: Resource = AppThemeConstants.TEXT_PRIMARY;
   static readonly ROW_SUBTITLE_COLOR: Resource = AppThemeConstants.TEXT_SECONDARY;
-  static readonly ROW_CURRENT_TEXT_COLOR: Resource = AppThemeConstants.TEXT_PRIMARY;
+  /** 当前播放曲目标题：主题红（theme_current_track） */
+  static readonly ROW_CURRENT_TEXT_COLOR: Resource = AppThemeConstants.CURRENT_TRACK;
   static readonly ROW_SEPARATOR_COLOR: Resource = AppThemeConstants.TEXT_SECONDARY;
   static readonly ROW_ACTION_COLOR: Resource = AppThemeConstants.TEXT_TERTIARY;
   static readonly ROW_CURRENT_ACTION_COLOR: Resource = AppThemeConstants.TEXT_TERTIARY;

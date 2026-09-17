@@ -77,7 +77,7 @@ export struct PlaylistAddAudioRow {
     HiLog.i(TAG, `bindTrackDisplay uri=${this.track.uri} hasCover=${this.hasCustomThumb}`);
   }
 
-  /** 与首页搜索一致：SearchScorer 分词 + SearchHighlighter 前缀高亮 */
+  /** 与首页搜索一致：SearchScorer 分词 + SearchHighlighter 包含高亮 */
   private rebuildHighlightSegments(): void {
     const keywords: string[] = SearchScorer.parseKeywords(this.searchKeyword);
     this.segments = SearchHighlighter.highlight(this.track.fileName, keywords);

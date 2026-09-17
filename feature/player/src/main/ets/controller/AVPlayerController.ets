@@ -614,11 +614,21 @@ export class AVPlayerController {
         }
         return false;
       }
-      const inFile = fs.openSync(path, fs.OpenMode.READ_ONLY);
-      this.amrSeekSegmentFd = inFile.fd;
-      this.amrSeekSegmentPath = path;
-      HiLog.i(TAG, `buildAmrSeekSegment path=${path} srcOffset=${dataOffset} copied=${copied}`);
-      return true;
+      let inFile: fs.File | undefined = undefined;
+      try {
+        inFile = fs.openSync(path, fs.OpenMode.READ_ONLY);
+        this.amrSeekSegmentFd = inFile.fd;
+        this.amrSeekSegmentPath = path;
+        HiLog.i(TAG, `buildAmrSeekSegment path=${path} srcOffset=${dataOffset} copied=${copied}`);
+        return true;
+      } catch (e) {
+        HiLog.e(TAG, `buildAmrSeekSegment open failed: ${JSON.stringify(e)}`);
+        return false;
+      } finally {
+        if (inFile) {
+          fs.closeSync(inFile);
+        }
+      }
     } catch (e) {
       HiLog.e(TAG, `buildAmrSeekSegment failed: ${JSON.stringify(e)}`);
       this.closeAmrSeekSegment();
@@ -1586,7 +1596,7 @@ export class AVPlayerController {
         HiLog.w(TAG, 'avPlayer error ignored: stale track switch');
         return;
       }
-      // 5400102 是状态机错误（切源/写 surface/scale），不是文件损坏
+      // 5400102 是状态机错误（切源/写渲染表面/scale），不是文件损坏
       if (operateNotPermit) {
         if (!fromInterruptResume &&
           (this.trackSwitchBusy || this.hasPendingTrackSwitch() || this.isAvPlayerPlaybackHealthy())) {
@@ -2841,21 +2851,6 @@ export class AVPlayerController {
         // 按音量键路径：系统音量条已由系统显示，本地不再弹音量面板，
         // 避免与系统音量条同时出现（issue IKBXP0 解决方案）。
         // 手势路径由 VideoPlayerController.onVolumeActionStart 单独显示本地面板。
-        // if (this.showVolumeTimerId !== 0) {
-        //   clearTimeout(this.showVolumeTimerId);
-        //   this.showVolumeTimerId = 0;
-        // }
-        // this.setVolumePanelVisible(true);
-        // this.showVolumeTimerId = setTimeout(() => {
-        //   if (!this.playPage) {
-        //     HiLog.e(TAG, `hideVolumeProgress, playPage is undefined`);
-        //     return;
-        //   }
-        //
-        //   this.setVolumePanelVisible(false);
-        //   clearTimeout(this.showVolumeTimerId);
-        //   this.showVolumeTimerId = 0;
-        // }, PlayConstants.HIDE_VOLUME_PROGRESS_TIME);
       });
     } catch (e) {
       let err: BusinessError = e as BusinessError;

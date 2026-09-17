@@ -108,7 +108,7 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
   private ancoRuningTimer: number = -1;
   /** 媒体库 asset.open 产生的 fd 需 asset.close，与 fs.open 区分 */
   private fdRelease: (() => Promise<void>) | null = null;
-  /** 首帧预热：initPlayPage 中提前打开文件，与 XComponent Surface 初始化并行 */
+  /** 首帧预热：initPlayPage 中提前打开文件，与 XComponent 渲染表面初始化并行 */
   private preOpenedFile: MediaPlaybackOpenResult | null = null;
   private sessionCoverPixelMap: image.PixelMap | null = null;
   private sessionCoverLoadKey: string = '';
@@ -212,14 +212,14 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
     }
     this.setFileInfo(this.fileInfo, false);
     VideoPlaybackSession.getInstance().bindController(this);
-    // 预热文件打开：与 XComponent Surface 初始化并行，减少首帧等待
+    // 预热文件打开：与 XComponent 渲染表面初始化并行，减少首帧等待
     if (this.fileInfo && this.fileInfo.uri.length > 0) {
       this.preOpenFileAsync(this.fileInfo);
     }
   }
 
   /**
-   * 预热文件打开：在 Surface 就绪前提前执行文件 I/O，并行缩短首帧链路。
+   * 预热文件打开：在渲染表面就绪前提前执行文件 I/O，并行缩短首帧链路。
    * 打开结果缓存在 preOpenedFile，openVideoSourceAsync 优先消费。
    *
    * @param fileInfo 目标视频文件信息

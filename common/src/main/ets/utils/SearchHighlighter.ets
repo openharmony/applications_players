@@ -24,8 +24,8 @@ export interface HighlightSegment {
 }
 
 /**
- * 搜索结果高亮：与 SearchMatchEngine 统一使用前缀匹配，
- * 保证「首字符/拼音前缀」时高亮从文件名开头锁定对应中英文字符，并随输入实时伸缩。
+ * 搜索结果高亮：与 SearchMatchEngine 统一使用包含匹配，
+ * 命中原文对应中英文字符并随输入实时伸缩。
  */
 export class SearchHighlighter {
   public static highlight(text: string, keywords: string[]): HighlightSegment[] {

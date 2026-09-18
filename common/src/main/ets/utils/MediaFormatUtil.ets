@@ -72,6 +72,89 @@ export class MediaFormatUtil {
   }
 
   /**
+   * 按 AMR-NB 最低码率估算时长上限（毫秒）。
+   * AMR 常无可靠 duration 索引，ffmpeg 按码率估算可能严重偏长；用最小帧长给出保守上限，
+   * 供判断 demuxer 时长是否虚高。
+   *
+   * @param fileSizeBytes 文件字节数
+   * @returns 估算上限毫秒；无法估算时返回 0
+   */
+  static estimateAmrDurationUpperBoundMs(fileSizeBytes: number): number {
+    if (fileSizeBytes <= 0) {
+      return 0;
+    }
+    // "#!AMR\n" 头约 6 字节；AMR-NB 帧 20ms，mode0 最小约 13 字节/帧
+    const payload = Math.max(0, fileSizeBytes - 6);
+    const amrNbFrameMs = 20;
+    const amrNbMinFrameBytes = 13;
+    return Math.floor(payload / amrNbMinFrameBytes) * amrNbFrameMs;
+  }
+
+  /**
+   * 按 AMR-NB 常用通话码率（mode7 / 12.2kbps，约 32 字节/帧）估算时长。
+   * demuxer 虚高时用该值做进度/seek，比上限更接近真机录音；若实际更长，播放中会随 timeUpdate 拉长。
+   */
+  static estimateAmrDurationTypicalMs(fileSizeBytes: number): number {
+    if (fileSizeBytes <= 0) {
+      return 0;
+    }
+    const payload = Math.max(0, fileSizeBytes - 6);
+    const amrNbFrameMs = 20;
+    const amrNbMode7FrameBytes = 32;
+    return Math.floor(payload / amrNbMode7FrameBytes) * amrNbFrameMs;
+  }
+
+  /** 是否为 AMR 音频文件名 */
+  static isAmrFileName(fileName: string): boolean {
+    if (!fileName || fileName.length === 0) {
+      return false;
+    }
+    const lower = fileName.toLowerCase();
+    return lower.endsWith('.amr');
+  }
+
+  /**
+   * 是否为 AMR 音源：同时看文件名与 URI/路径（列表展示名可能无扩展名）。
+   */
+  static isAmrMedia(fileName: string, uri: string, path: string = ''): boolean {
+    if (MediaFormatUtil.isAmrFileName(fileName)) {
+      return true;
+    }
+    if (uri && uri.toLowerCase().includes('.amr')) {
+      return true;
+    }
+    if (path && path.toLowerCase().endsWith('.amr')) {
+      return true;
+    }
+    return false;
+  }
+
+  /** 是否为 mp3 音频文件名 */
+  static isMp3FileName(fileName: string): boolean {
+    if (!fileName || fileName.length === 0) {
+      return false;
+    }
+    const lower = fileName.toLowerCase();
+    return lower.endsWith('.mp3');
+  }
+
+  /**
+   * 是否为 mp3 音源：同时看文件名与 URI/路径（列表展示名可能无扩展名）。
+   */
+  static isMp3Media(fileName: string, uri: string, path: string = ''): boolean {
+    if (MediaFormatUtil.isMp3FileName(fileName)) {
+      return true;
+    }
+    if (uri && uri.toLowerCase().includes('.mp3')) {
+      return true;
+    }
+    if (path && path.toLowerCase().endsWith('.mp3')) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * 标准分辨率档位文案（360P / 480P / 720P / 1080P / 2K / 4K / 8K）。
    * 按短边优先、长边兜底判定，兼容横竖屏。
    *

@@ -109,7 +109,7 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
   }
 
   /**
-   * 当前正在播放或已加载的 URI
+   * 当前活跃 URI：切源过程中优先返回 pending，避免 Session/页面二次 switchToTrack
    *
    * @returns 音源 URI
    */
@@ -144,8 +144,11 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
   };
 
   toCompleted(): void {
+    // 先拉满进度，再处理循环/切歌，避免录音/AMR 结束时进度条停在未满
+    this.fillProgressToEnd();
     if (this.audioLoopMode === AudioLoopMode.SINGLE) {
-      HiLog.i(TAG, 'toCompleted single loop, avPlayer handles repeat');
+      HiLog.i(TAG, 'toCompleted single loop, replay current track');
+      this.replayCurrentTrackFromStart();
       return;
     }
     if (this.audioLoopMode === AudioLoopMode.LIST) {
@@ -153,10 +156,7 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
       if (PlaybackQueueManager.getInstance().advanceForListLoop()) {
         return;
       }
-      if (this.avPlayer !== null) {
-        this.avPlayer.seek(0);
-        this.play();
-      }
+      this.replayCurrentTrackFromStart();
       return;
     }
     if (this.audioLoopMode === AudioLoopMode.RANDOM) {
@@ -164,16 +164,28 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
       if (PlaybackQueueManager.getInstance().advanceForRandomPlay()) {
         return;
       }
-      if (this.avPlayer !== null) {
-        this.avPlayer.seek(0);
-        this.play();
-      }
+      this.replayCurrentTrackFromStart();
       return;
     }
     super.toCompleted();
   }
 
-  /** 下一曲：随机模式下随机选曲，否则顺序下一首 */
+  /** 从当前曲目开头重播（单曲循环 / 队列仅一首时的切歌与列表循环） */
+  protected replayCurrentTrackFromStart(): void {
+    if (this.avPlayer === null) {
+      return;
+    }
+    // AMR 字节 seek 后 seek(0) 只回到片段头，需重绑整文件
+    if (this.amrFileOffset > 0) {
+      HiLog.i(TAG, 'replayCurrentTrackFromStart rebind amr from start');
+      this.wasPlayingBeforeSeek = true;
+      void this.seekAmrByFilePercent(0);
+      return;
+    }
+    super.replayCurrentTrackFromStart();
+  }
+
+  /** 下一曲：随机模式下随机选曲，否则顺序下一首；队列仅一首时重播当前曲 */
   skipToNextTrack(): void {
     HiLog.i(TAG, `skipToNextTrack mode=${this.audioLoopMode}`);
     if (this.audioLoopMode === AudioLoopMode.RANDOM) {
@@ -183,7 +195,8 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
     } else if (PlaybackQueueManager.getInstance().skipToNext()) {
       return;
     }
-    HiLog.i(TAG, 'skipToNextTrack no next track in queue');
+    HiLog.i(TAG, 'skipToNextTrack no next track in queue, replay current');
+    this.replayCurrentTrackFromStart();
   }
 
   public operatePath:number = 0;
@@ -217,6 +230,7 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
       HiLog.i(TAG, `switchToTrack skipped pendingUri=%{private}s`, this.pendingUri);
       return;
     }
+    this.resetPlaybackSpeed();
     this._isStopped = false;
     this.pendingSwitchFileInfo = fileInfo;
     this.pendingUri = fileInfo.uri;
@@ -451,6 +465,7 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
       this.finishParseFileTrace();
       return;
     }
+    // 最终检查是否已停止
     if (this._isStopped) {
       await opened.release();
       HiLog.i(TAG, `playWithFd aborted before bind: player is stopped`);
@@ -459,32 +474,41 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
     }
     this.playingUri = uri;
     this.fdRelease = opened.release;
+    if (opened.size > 0) {
+      this.fileInfo.fileSize = opened.size;
+      this.syncOpenedFileSize(opened.size);
+    }
     this.setFdSrc(opened.fd);
     this.markTrackSourceBound();
     if (this.pendingSwitchFileInfo === null && this.pendingUri === uri) {
       this.pendingUri = '';
     }
-    HiLog.i(TAG, `playWithFd bound playingUri=%{private}s fd=${opened.fd}`, uri);
-    void this.extractAlbumCover(uri);
+    // 专辑封面提取延后到 fd 源绑定之后并行执行，不阻塞 AVPlayer 解码首帧；
+    // 封面提取器内部独立打开 fd，不与 AVPlayer 共享文件偏移
+    this.extractAlbumCover(uri, this.fileInfo.fileName);
+    HiLog.i(TAG, `playWithFd bound playingUri=%{private}s fd=${opened.fd} size=${opened.size}`, uri);
   }
 
   /**
    * 提取嵌入式专辑封面：fdSrc → setUrlSource 回退，完成后通知 View 刷新
    *
    * @param uri 媒体 URI（fd 失败时用于 setUrlSource）
-   * @param fd 可选文件描述符
-   * @param fileSize 可选文件大小
+   * @param fileName 显示文件名（媒体库资产匹配用）
    */
-  private async extractAlbumCover(uri: string, fd?: number, fileSize?: number): Promise<void> {
+  private async extractAlbumCover(uri: string, fileName: string): Promise<void> {
     let avMetadataExtractor: media.AVMetadataExtractor | undefined = undefined;
     let pixelMap: image.PixelMap | undefined = undefined;
+    let coverOpened: MediaPlaybackOpenResult | null = null;
     try {
       avMetadataExtractor = await media.createAVMetadataExtractor();
-      if (fd !== undefined && fileSize !== undefined) {
+      // 独立打开封面专用 fd：若与 AVPlayer 复用同一 fd，双方并发探测会互相踩
+      // 共享文件偏移，导致 demuxer 时长探测结果随机
+      coverOpened = await MediaPlaybackFileOpener.openReadOnly(uri, fileName);
+      if (coverOpened !== null) {
         const fdSrc: media.AVFileDescriptor = {
-          fd: fd,
+          fd: coverOpened.fd,
           offset: 0,
-          length: fileSize
+          length: coverOpened.size
         };
         avMetadataExtractor.fdSrc = fdSrc;
       } else {
@@ -494,7 +518,7 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
     } catch (err) {
       const error = err as BusinessError;
       HiLog.w(TAG, `extractAlbumCover fd pass failed message=${error.message} code=${error.code}`);
-      if (fd !== undefined && uri.length > 0) {
+      if (uri.length > 0) {
         try {
           if (avMetadataExtractor) {
             await avMetadataExtractor.release();
@@ -510,6 +534,9 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
     } finally {
       if (avMetadataExtractor) {
         avMetadataExtractor.release();
+      }
+      if (coverOpened !== null) {
+        await coverOpened.release();
       }
     }
     if (this.isSwitchTargetStale(uri) || this._isStopped) {
@@ -529,8 +556,7 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
       this.notifyEmbeddedCoverUpdated();
       // 仅在内嵌封面就绪时补刷播控元数据；标题已在 switchToTrack 或 setSessionInfo 首次创建时写入
       void this.updateAvSessionMetadata();
-    } else if (this.audioPlayerPage) {
-      this.audioPlayerPage.audioImage = null;
+    } else {
       HiLog.i(TAG, `extractAlbumCover no embedded cover fileName=${this.fileInfo.fileName}`);
       this.notifyEmbeddedCoverUpdated();
     }

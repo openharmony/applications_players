@@ -53,7 +53,7 @@ export struct AudioPage {
   // 是否全屏
   @LocalStorageProp('isPcFullScreen') isPcFullScreen: boolean = false;
   // 当前页面的播放状态
-  @State playState: number = PlayConstants.STATUS_START;
+  @State @Watch('onPlayStateWatch') playState: number = PlayConstants.STATUS_START;
   @State isHideProgressAndTitle: boolean = false;
   // UIExtension场景下面场景大小
   @State uiExtensionAudioSize: window.Size = { width: 0, height: 0 };
@@ -94,6 +94,63 @@ export struct AudioPage {
   /** 进入播放页前的壳层方向，用于返回首页时恢复横竖屏 */
   private shellOrientationSnapshot: OrientationSnapshot | null = null;
 
+  /**
+   * 播放态变更回调：进入播放时 durationUpdate 已回调，此时再补一次元信息，
+   * 覆盖冷启动首次扫描 duration=0 且页面构建早于 AVPlayer prepared 的场景。
+   */
+  private onPlayStateWatch(): void {
+    if (this.playState === PlayConstants.STATUS_START) {
+      this.fillMissingMediaMeta();
+    }
+  }
+
+  /**
+   * 补齐页面 FileInfo 缺失的 size/duration，并整体重赋值刷新子组件 @Prop 快照。
+   * （@Prop 深拷贝，仅改字段无法刷新 PlayerProgress，须换新对象触发元信息重算）
+   */
+  private fillMissingMediaMeta(): void {
+    if (!this.fileInfo) {
+      return;
+    }
+    let patched: boolean = false;
+    if (this.fileInfo.fileSize <= 0) {
+      const openedSize = this.audioController.getOpenedFileSize();
+      if (openedSize > 0) {
+        this.fileInfo.fileSize = openedSize;
+        patched = true;
+      } else if (this.audioController.fileInfo.fileSize > 0) {
+        this.fileInfo.fileSize = this.audioController.fileInfo.fileSize;
+        patched = true;
+      }
+    }
+    if (this.fileInfo.duration <= 0) {
+      const durationMs = this.audioController.getProgressDurationMs();
+      if (durationMs > 0) {
+        this.fileInfo.duration = durationMs;
+        patched = true;
+      }
+    }
+    if (patched) {
+      this.fileInfo = AudioPage.cloneFileInfo(this.fileInfo);
+    }
+  }
+
+  /** 拷贝 FileInfo 全量字段（含基类与扩展字段），供整体重赋值刷新 @Prop 子组件 */
+  private static cloneFileInfo(src: FileInfo): FileInfo {
+    const copy = new FileInfo(src.fileName, src.uri, src.mimeType, src.fileSize, src.updateTime,
+      src.fileItems, src.fileStatus, src.location, src.filePath, src.createTime);
+    copy.thumbUri = src.thumbUri;
+    copy.coverUri = src.coverUri;
+    copy.thumbGenerated = src.thumbGenerated;
+    copy.duration = src.duration;
+    copy.timesStampApp = src.timesStampApp;
+    copy.thumbnailModifiledMs = src.thumbnailModifiledMs;
+    copy.picWidth = src.picWidth;
+    copy.picHeight = src.picHeight;
+    copy.mediaPath = src.mediaPath;
+    return copy;
+  }
+
   onFileInfoChange(): void {
     if (!this.fileInfo?.uri) {
       return;
@@ -108,6 +165,7 @@ export struct AudioPage {
     HiLog.i(TAG, `onFileInfoChange switch track uri=%{private}s`, this.fileInfo.uri);
     this.activeUri = this.fileInfo.uri;
     this.loadingStatus = LoadingStatus.LOAD_STATE_LOADING;
+    // Session 已切源时 getActiveUri 含 pendingUri，此处只同步 UI，避免二次 switchToTrack
     if (this.audioController.getActiveUri() === this.fileInfo.uri) {
       HiLog.i(TAG, `onFileInfoChange ui only uri=%{private}s`, this.fileInfo.uri);
       return;
@@ -252,6 +310,8 @@ export struct AudioPage {
       return;
     }
 
+    // 冷启动展开：页面 FileInfo 常缺 size/duration；须在传给子组件 @Prop 前补齐
+    this.fillMissingMediaMeta();
     this.audioController.fileInfo = this.fileInfo;
     this.audioController.initPlayPage(this);
     this.playState = this.audioController.getPlayState();

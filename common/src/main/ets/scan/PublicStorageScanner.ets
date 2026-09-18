@@ -109,9 +109,10 @@ export class PublicStorageScanner {
   /**
    * 扫描所有公共存储目录的媒体文件
    *
+   * @param skipFillDuration 为 true 时跳过 duration 填充，返回的 durationFailedFiles 为 duration<=0 的文件列表
    * @returns 扫描结果，包含文件列表和 duration 提取失败的文件列表
    */
-  async scanAllMediaFiles(): Promise<PublicScanResult> {
+  async scanAllMediaFiles(skipFillDuration?: boolean): Promise<PublicScanResult> {
     const roots: string[] = MediaScanRoots.getAllCandidateRoots();
     HiLog.i(TAG, `Public storage scan: ${roots.length} root directories`);
 
@@ -137,7 +138,14 @@ export class PublicStorageScanner {
     HiLog.i(TAG, `Public storage scan complete: ${merged.length} files`);
 
     // 补充 duration：PublicStorageScanner 不走 AVMetadataExtractor，需要单独填充
-    const durationFailedFiles = await PublicStorageScanner.fillMissingDuration(merged);
+    let durationFailedFiles: FileInfo[] = [];
+    if (!skipFillDuration) {
+      durationFailedFiles = await PublicStorageScanner.fillMissingDuration(merged);
+    } else {
+      // 跳过填充时，所有 duration<=0 的文件都标记为“待填充”
+      durationFailedFiles = merged.filter((f: FileInfo) => f.duration <= 0);
+      HiLog.i(TAG, `Duration fill skipped: ${durationFailedFiles.length} files pending`);
+    }
 
     return { files: merged, durationFailedFiles };
   }
@@ -371,7 +379,7 @@ export class PublicStorageScanner {
    * @param files 待处理的文件列表
    * @returns 仍然缺失 duration 的文件列表（供重试队列使用）
    */
-  private static async fillMissingDuration(files: FileInfo[]): Promise<FileInfo[]> {
+  static async fillMissingDuration(files: FileInfo[]): Promise<FileInfo[]> {
     const MAX_CONCURRENT_FILL = 4;
     const pending = files.filter(f => f.duration <= 0);
     if (pending.length === 0) {

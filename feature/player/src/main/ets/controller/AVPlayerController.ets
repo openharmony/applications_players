@@ -34,6 +34,7 @@ import { PlaylistPlaybackResumeManager } from '@ohos/common/src/main/ets/persist
 import { appLocalStorage } from '@ohos/common/src/main/ets/storage/AppLocalStorage';
 import DateFormatUtil from '@ohos/common/src/main/ets/utils/DateFormatUtil';
 import DeviceConfigUtil from '@ohos/common/src/main/ets/utils/DeviceConfigUtil';
+import { MediaFormatUtil } from '@ohos/common/src/main/ets/utils/MediaFormatUtil';
 import WindowUtil from '@ohos/common/src/main/ets/utils/WindowUtil';
 import fs from '@ohos.file.fs';
 import audio from '@ohos.multimedia.audio';
@@ -91,7 +92,7 @@ export class AVPlayerController {
   private isEnterVideoFullScene: boolean = false;
   private isSeekDone: boolean = true;
   /** 拖动进度条前是否在播，用于 seek 结束后恢复播放 */
-  private wasPlayingBeforeSeek: boolean = false;
+  protected wasPlayingBeforeSeek: boolean = false;
   /** 来电等系统中断前是否在播，用于挂断后自动恢复 */
   private interruptedWhilePlaying: boolean = false;
   /** 挂断后待执行的恢复（延迟/后台 defer，避免电话音频会话未释放时抢焦点失败） */
@@ -105,7 +106,34 @@ export class AVPlayerController {
   private static readonly INTERRUPT_RESUME_DELAY_MS: number = 1000;
   private static readonly INTERRUPT_RESUME_MAX_RETRY: number = 2;
   private static readonly PLAY_PROGRESS_WATCH_MS: number = 700;
-  private lastProgressUpdateTime = 0;
+  protected lastProgressUpdateTime = 0;
+  /**
+   * 进度条/seek 使用的时长（毫秒）。AMR 等格式 demuxer 按时长码率估算可能严重偏长，
+   * 此时用文件大小估算上限替代 avPlayer.duration，避免总时长虚高、进度提前拉满。
+   */
+  protected progressDurationMs: number = 0;
+  /** 打开音源时的真实文件字节数（不依赖 FileInfo 字段是否带齐） */
+  protected openedFileSize: number = 0;
+  /**
+   * 进度时长可增长的上限（AMR 校正后的 upper bound）。
+   * 防止 timeUpdate 异常大值或错误 seek 后把 progressDuration 又撑回 demuxer 虚高值。
+   */
+  protected progressDurationCapMs: number = 0;
+  /** AMR 按字节偏移重绑播放时的文件偏移（0 表示整文件） */
+  protected amrFileOffset: number = 0;
+  /** AMR 字节 seek 后 UI 进度基准（毫秒），displayTime = base + avPlayer.currentTime */
+  protected amrSeekBaseMs: number = 0;
+  /** AMR 整曲校正后的总时长，segment 重绑时不要被短 duration 覆盖 */
+  protected amrFullDurationMs: number = 0;
+  /** AMR 字节 seek 后是否在 prepared 时恢复播放 */
+  private pendingAmrSeekPlay: boolean = false;
+  /** 标记当前 prepared 来自 AMR 字节 seek（用于区分首播自动 play） */
+  private amrSeekInFlight: boolean = false;
+  /** AMR segment 内 timeUpdate 基准（相对片段，非整曲展示时间） */
+  private lastSegmentProgressTime: number = 0;
+  /** 带 #!AMR 头的临时片段 fd（中段重绑 demuxer 需要魔数头） */
+  private amrSeekSegmentFd: number | null = null;
+  private amrSeekSegmentPath: string = '';
   private lastUIExtensionStopTime = 0;
   /** 歌单续播落盘节流（毫秒） */
   private lastPlaylistResumeSaveAt: number = 0;
@@ -188,6 +216,7 @@ export class AVPlayerController {
   }
 
   releaseResource(): void {
+    this.closeAmrSeekSegment();
     if (this.fdSrc) {
       HiLog.i(TAG, 'Close fdSrc to release resource');
       this.windowCallBackOff();
@@ -247,19 +276,25 @@ export class AVPlayerController {
     if (this.playProgress === null) {
       return;
     }
+    // 切源中 AVPlayer.currentTime 仍是旧曲，不能写到新进度条（日志 1：5253ms 画成 3.17%）
     if (this.suppressTimeUpdateUntilPrepared || this.trackSwitchBusy || this.hasPendingTrackSwitch()) {
       this.paintSwitchProgressUi();
       HiLog.i(TAG, 'syncBoundPlayProgress skip stale avTime during track switch');
       return;
     }
+    this.applyResolvedProgressDuration('syncBound');
     const avTime = this.avPlayer?.currentTime ?? 0;
     const syncTime = avTime > 0 ? avTime :
       (this.currentTime > 0 ? this.currentTime : this.lastProgressUpdateTime);
     HiLog.i(TAG, `syncBoundPlayProgress time=${syncTime} duration=${this.getProgressDurationMs()}`);
+    // 强制刷新：新组件实例 totalTime 是初始 '00:00'，且 nowSeconds 在上次 timeUpdate
+    // 已被设成 syncTime 对应秒数时，toFindSecondTime 节流会拦截，导致"暂停后再次进入
+    // 播放页"currentTime/totalTime 文本保持 00:00 不会被刷新。isForce=true 跳过节流。
+    // syncTime=0 也要走 initProgress，才能带上总时长，避免滑块/时间停在初始 00:00。
     const rawTime = syncTime > 0 ? syncTime : 0;
     this.dropInsaneSliderSeekRemap(rawTime);
     const uiTime = this.mapSliderSeekDisplayTime(rawTime);
-    this.initProgress(uiTime, true);
+    this.initProgress(uiTime, true, true);
     if (syncTime > 0 && this.sliderSeekBaseActualMs >= 0) {
       this.lastProgressUpdateTime = syncTime;
     }
@@ -272,9 +307,11 @@ export class AVPlayerController {
     }
     this.playProgress.progressVal = 0;
     this.playProgress.currentTime = '00:00';
-    if (this.saveFileInfo.duration > 0) {
-      this.playProgress.totalTime =
-        DateFormatUtil.secondToTime(Math.floor(this.saveFileInfo.duration / Constants.A_THOUSAND));
+    if (this.progressDurationMs <= 0 && this.saveFileInfo.duration > 0) {
+      this.progressDurationMs = this.saveFileInfo.duration;
+    }
+    if (this.progressDurationMs > 0) {
+      this.syncProgressTotalTimeUi();
     } else {
       this.playProgress.totalTime = '00:00';
     }
@@ -476,8 +513,127 @@ export class AVPlayerController {
       HiLog.e(TAG, `applyPendingAvPlayerSource skipped: state=${this.avPlayer.state} not idle`);
       return;
     }
+    // AMR：整文件或临时片段（含 #!AMR 头）。时间戳 seek 常错位，拖近结尾会提前 EOS
+    if (this.isCurrentAmrMedia() && this.openedFileSize > 0) {
+      if (this.amrSeekSegmentFd !== null) {
+        let segmentLen = 0;
+        try {
+          segmentLen = fs.statSync(this.amrSeekSegmentFd).size;
+        } catch (e) {
+          HiLog.w(TAG, `amr segment stat failed: ${JSON.stringify(e)}`);
+        }
+        const fdDesc: media.AVFileDescriptor = {
+          fd: this.amrSeekSegmentFd,
+          offset: 0,
+          length: segmentLen > 0 ? segmentLen : Math.max(0, this.openedFileSize - this.amrFileOffset)
+        };
+        this.avPlayer.fdSrc = fdDesc;
+        HiLog.i(TAG,
+          `applyPendingAvPlayerSource amr segmentFd=${this.amrSeekSegmentFd} len=${fdDesc.length} ` +
+            `srcOffset=${this.amrFileOffset}`);
+        return;
+      }
+      const fdDesc: media.AVFileDescriptor = {
+        fd: this.fdSrc,
+        offset: 0,
+        length: this.openedFileSize
+      };
+      this.avPlayer.fdSrc = fdDesc;
+      HiLog.i(TAG, `applyPendingAvPlayerSource amr fd=${this.fdSrc} length=${this.openedFileSize}`);
+      return;
+    }
     this.avPlayer.url = `fd://${this.fdSrc}`;
     HiLog.i(TAG, `applyPendingAvPlayerSource fd=${this.fdSrc}`);
+  }
+
+  /** 关闭并删除 AMR seek 临时片段 */
+  private closeAmrSeekSegment(): void {
+    if (this.amrSeekSegmentFd !== null) {
+      try {
+        fs.closeSync(this.amrSeekSegmentFd);
+      } catch (e) {
+        HiLog.w(TAG, `closeAmrSeekSegment fd failed: ${JSON.stringify(e)}`);
+      }
+      this.amrSeekSegmentFd = null;
+    }
+    if (this.amrSeekSegmentPath.length > 0) {
+      try {
+        fs.unlinkSync(this.amrSeekSegmentPath);
+      } catch (e) {
+        HiLog.w(TAG, `closeAmrSeekSegment unlink failed: ${JSON.stringify(e)}`);
+      }
+      this.amrSeekSegmentPath = '';
+    }
+  }
+
+  /**
+   * 从原文件 dataOffset 起拷贝帧数据，前置 #!AMR\\n 写入缓存临时文件并打开。
+   * 中段无魔数头时 demuxer 无法探测 AMR。
+   */
+  private buildAmrSeekSegment(dataOffset: number): boolean {
+    this.closeAmrSeekSegment();
+    if (this.fdSrc === null || this.openedFileSize <= 0 || dataOffset <= 0) {
+      return false;
+    }
+    if (dataOffset >= this.openedFileSize) {
+      HiLog.e(TAG, `buildAmrSeekSegment offset=${dataOffset} >= size=${this.openedFileSize}`);
+      return false;
+    }
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const path = `${context.cacheDir}/amr_seek_segment.amr`;
+      const outFile = fs.openSync(path, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+      const header = new Uint8Array([0x23, 0x21, 0x41, 0x4D, 0x52, 0x0A]); // #!AMR\n
+      fs.writeSync(outFile.fd, header.buffer);
+      const remain = this.openedFileSize - dataOffset;
+      const bufSize = 64 * 1024;
+      const buf = new ArrayBuffer(bufSize);
+      let copied = 0;
+      // 使用独立 seek 定位，避免不同 API 下 read options.offset 语义歧义
+      fs.lseek(this.fdSrc, dataOffset, fs.WhenceType.SEEK_SET);
+      while (copied < remain) {
+        const toRead = Math.min(bufSize, remain - copied);
+        const readN = fs.readSync(this.fdSrc, buf, { length: toRead });
+        if (readN <= 0) {
+          break;
+        }
+        fs.writeSync(outFile.fd, buf, { length: readN });
+        copied += readN;
+      }
+      // 恢复原 fd 读指针到文件头，避免后续整文件重绑异常
+      try {
+        fs.lseek(this.fdSrc, 0, fs.WhenceType.SEEK_SET);
+      } catch (_e) {
+      }
+      fs.closeSync(outFile.fd);
+      if (copied <= 0) {
+        HiLog.e(TAG, `buildAmrSeekSegment copied=0 offset=${dataOffset}`);
+        try {
+          fs.unlinkSync(path);
+        } catch (_e) {
+        }
+        return false;
+      }
+      let inFile: fs.File | undefined = undefined;
+      try {
+        inFile = fs.openSync(path, fs.OpenMode.READ_ONLY);
+        this.amrSeekSegmentFd = inFile.fd;
+        this.amrSeekSegmentPath = path;
+        HiLog.i(TAG, `buildAmrSeekSegment path=${path} srcOffset=${dataOffset} copied=${copied}`);
+        return true;
+      } catch (e) {
+        HiLog.e(TAG, `buildAmrSeekSegment open failed: ${JSON.stringify(e)}`);
+        return false;
+      } finally {
+        if (inFile) {
+          fs.closeSync(inFile);
+        }
+      }
+    } catch (e) {
+      HiLog.e(TAG, `buildAmrSeekSegment failed: ${JSON.stringify(e)}`);
+      this.closeAmrSeekSegment();
+      return false;
+    }
   }
 
   /**
@@ -621,15 +777,16 @@ export class AVPlayerController {
 
   setLoop(isLoop: boolean): void {
     HiLog.i(TAG, `setLoop: ${isLoop}`);
+    this.isLoop = isLoop;
     if (this.avPlayer !== null) {
-      this.isLoop = isLoop;
       this.avPlayer.loop = this.isLoop;
     }
   }
 
   setAudioLoopMode(mode: AudioLoopMode): void {
     this.audioLoopMode = mode;
-    this.setLoop(mode === AudioLoopMode.SINGLE);
+    // 音频单曲循环不走 AVPlayer.loop：AMR 等格式 native loop 可能在真实结尾前重播
+    this.setLoop(false);
     HiLog.i(TAG, `setAudioLoopMode: ${mode}`);
   }
 
@@ -684,9 +841,22 @@ export class AVPlayerController {
     this.setPlayingSpeed(playbackRate);
   }
 
+  /**
+   * 恢复默认倍速（1.0X），并同步播放页倍速文案。
+   */
+  resetPlaybackSpeed(): void {
+    this.setSpeed(PlayConstants.PLAY_PAGE_PLAY_SPEED);
+    if (this.playPage !== null) {
+      this.playPage.speedLabel = '1.0X';
+      this.playPage.currentSpeedLabel = '1.0X';
+    }
+  }
+
   setProgressVisible(visible: boolean) {
     this.isProgressVisible = visible;
     if (visible && this.playProgress) {
+      // 控件隐藏期间只更新滑块、不写时间文案；再次显示必须强制同步，
+      // 否则会出现滑块已到 98%、时间仍停在 00:04 / 00:00。
       this.syncBoundPlayProgress();
     }
   }
@@ -696,7 +866,7 @@ export class AVPlayerController {
   }
 
   /**
-   * 暂停后 play 常从 0 起播。若滑条仍锁在松手点，先 CLOSEST 回到 hold。
+   * 暂停后 play 常从 0 起播。若滑条仍锁在松手点，先 CLOSEST 回到 hold，避免再走「片头 → 重试 → 卡顿」。
    */
   private ensureSeekHoldBeforePlay(): void {
     if (this.avPlayer === null || this.isAudioPage) {
@@ -838,6 +1008,12 @@ export class AVPlayerController {
 
   /** play 后若进度不前进，判定 AudioRenderer 已坏，强制重建 */
   private armPlayProgressWatch(): void {
+    // 视频路径不需要此保护：SEEK_PREV_SYNC 让首帧 timeUpdate 总是 < seekTime，
+    // 700ms 监控窗口内必然触发 stalled → 重建 AVPlayer → 1.5s 卡顿。
+    // 视频 renderer 坏掉的恢复由 on('error') 事件 + recoverAvPlayerAfterError 单独处理。
+    if (!this.isAudioPage) {
+      return;
+    }
     this.cancelPlayProgressWatch();
     this.playProgressWatchBaselineMs = this.getPlaybackPositionMs();
     this.playProgressWatchTimerId = setTimeout(() => {
@@ -854,6 +1030,10 @@ export class AVPlayerController {
   }
 
   private onPlayProgressWatchFired(): void {
+    // 视频路径不触发该路径（armPlayProgressWatch 提前 return），双保险
+    if (!this.isAudioPage) {
+      return;
+    }
     if (CallInterruptState.isCallActive()) {
       HiLog.i(TAG, 'playProgressWatch skip: call active');
       return;
@@ -898,12 +1078,30 @@ export class AVPlayerController {
   protected async rebindMediaSourceForRecovery(resumePositionMs: number): Promise<boolean> {
     const forceRecreate = this.rendererNeedsRebuild;
     HiLog.i(TAG, `rebindMediaSourceForRecovery ms=${resumePositionMs} fd=${this.fdSrc} forceRecreate=${forceRecreate}`);
-    if (resumePositionMs > 0) {
-      PlaybackResumeContext.setPendingStartMs(resumePositionMs);
-    }
     this.rendererNeedsRebuild = false;
     if (this.fdSrc === null) {
       return false;
+    }
+    // AMR 恢复也走字节偏移，避免 pendingStartMs + 时间戳 seek 再次错位
+    this.ensureOpenedFileSizeFromFd();
+    if (this.isCurrentAmrMedia() && this.openedFileSize > 0 && resumePositionMs > 0) {
+      const fullDuration = this.progressDurationMs > 0 ? this.progressDurationMs :
+        (this.amrFullDurationMs > 0 ? this.amrFullDurationMs : resumePositionMs);
+      const percent = Math.max(0, Math.min(Constants.ONE_HUNDRED,
+        resumePositionMs * Constants.ONE_HUNDRED / Math.max(fullDuration, 1)));
+      if (forceRecreate) {
+        const recreated = await this.recreateAvPlayer();
+        if (!recreated || !this.isAvPlayerIdle()) {
+          this.rendererNeedsRebuild = true;
+          return false;
+        }
+      }
+      this.wasPlayingBeforeSeek = true;
+      await this.seekAmrByFilePercent(percent);
+      return this.fdSrc !== null;
+    }
+    if (resumePositionMs > 0) {
+      PlaybackResumeContext.setPendingStartMs(resumePositionMs);
     }
     let idle = false;
     if (forceRecreate) {
@@ -1187,10 +1385,12 @@ export class AVPlayerController {
     this.avPlayer?.off('volumeChange');
     this.avPlayer?.off('error');
     this.avPlayer?.off('seekDone');
+    this.avPlayer?.off('durationUpdate');
     this.avPlayer?.off('audioInterrupt');
     this.avPlayer?.off('audioOutputDeviceChangeWithInfo');
-    this.audioControlBridge.unregisterCallbacks();
-    this.videoControlBridge.unregisterCallbacks();
+    // 注意：切歌自愈 recreateAvPlayer() 也会走到这里，AVSession 回调生命周期独立于 AVPlayer 实例，
+    // 绝不能在此注销桥接回调（off() 会把存活会话的 supportedCommands 删空且不会再恢复）。
+    // 桥接回调的注销只允许出现在 release() 终端释放路径。
   }
 
   async release() {
@@ -1201,12 +1401,17 @@ export class AVPlayerController {
     this.rendererNeedsRebuild = false;
     this.continuousTaskRunning = false;
     this.unregisterListeners();
+    // 终端释放时才注销 AVSession 桥接回调（与 AVPlayer 实例重建解耦），
+    // 保证切歌 recreateAvPlayer 期间会话 supportedCommands 不被 off() 清空。
+    this.audioControlBridge.unregisterCallbacks();
+    this.videoControlBridge.unregisterCallbacks();
     this.avPlayer !== null && await this.avPlayer.release();
     this.avPlayer = null;
     this.releaseResource();
     this.syncPlayState(PlayConstants.STATUS_PAUSE);
     this.playPage = null;
     this.playProgress = null;
+    this.speed = PlayConstants.PLAY_PAGE_PLAY_SPEED;
     this.pagePlayStateUpdater = undefined;
     this.progressPlayStateListeners = [];
     this.volumePanelUpdater = undefined;
@@ -1222,6 +1427,15 @@ export class AVPlayerController {
     this.releaseResource();
     this.avPlayer !== null && this.avPlayer.reset();
     this.lastProgressUpdateTime = 0;
+    this.progressDurationMs = 0;
+    this.progressDurationCapMs = 0;
+    this.openedFileSize = 0;
+    this.amrFileOffset = 0;
+    this.amrSeekBaseMs = 0;
+    this.amrFullDurationMs = 0;
+    this.pendingAmrSeekPlay = false;
+    this.amrSeekInFlight = false;
+    this.lastSegmentProgressTime = 0;
     this.clearSliderSeekRemap();
     if (this.playProgress) {
       this.playProgress.progressVal = 0;
@@ -1264,24 +1478,19 @@ export class AVPlayerController {
     this.markTrackSwitchBusy();
     this.currentTime = 0;
     this.lastProgressUpdateTime = 0;
+    this.openedFileSize = 0;
+    this.amrFileOffset = 0;
+    this.amrSeekBaseMs = 0;
+    this.amrFullDurationMs = 0;
+    this.pendingAmrSeekPlay = false;
+    this.amrSeekInFlight = false;
+    this.lastSegmentProgressTime = 0;
+    this.progressDurationCapMs = 0;
     this.clearSliderSeekRemap();
-    this.paintSwitchProgressUiForFile(fileInfo);
+    this.progressDurationMs = fileInfo.duration > 0 ? fileInfo.duration : 0;
+    this.paintSwitchProgressUi();
     if (this.playPage !== null) {
       this.playPage.loadingStatus = LoadingStatus.LOAD_STATE_LOADING;
-    }
-  }
-
-  private paintSwitchProgressUiForFile(fileInfo: FileInfo): void {
-    if (this.playProgress === null) {
-      return;
-    }
-    this.playProgress.progressVal = 0;
-    this.playProgress.currentTime = '00:00';
-    if (fileInfo.duration > 0) {
-      this.playProgress.totalTime =
-        DateFormatUtil.secondToTime(Math.floor(fileInfo.duration / Constants.A_THOUSAND));
-    } else {
-      this.playProgress.totalTime = '00:00';
     }
   }
 
@@ -1318,6 +1527,7 @@ export class AVPlayerController {
     }
     const boundGeneration: number = this.avPlayerGeneration;
     this.avPlayer.on('stateChange', async (state) => {
+      // 丢弃已释放旧实例入队的 stateChange，防止旧 initialized 打到新 idle 实例
       if (boundGeneration !== this.avPlayerGeneration) {
         HiLog.w(TAG, `stateChange stale gen=${boundGeneration} current=${this.avPlayerGeneration} ` +
           `state=${state}, skip`);
@@ -1381,10 +1591,12 @@ export class AVPlayerController {
       HiLog.e(TAG, `avPlayer error message: ${err.message}, code: ${err.code} ` +
         `fromInterruptResume=${fromInterruptResume} retry=${this.interruptResumeRetryCount} ` +
         `switchBusy=${this.trackSwitchBusy} staleSwitch=${staleSwitch} state=${playerState}`);
+      // 上一首 stop/reset 排队的回调，或尚未绑定当前源
       if (staleSwitch && !fromInterruptResume) {
         HiLog.w(TAG, 'avPlayer error ignored: stale track switch');
         return;
       }
+      // 5400102 是状态机错误（切源/写渲染表面/scale），不是文件损坏
       if (operateNotPermit) {
         if (!fromInterruptResume &&
           (this.trackSwitchBusy || this.hasPendingTrackSwitch() || this.isAvPlayerPlaybackHealthy())) {
@@ -1398,6 +1610,7 @@ export class AVPlayerController {
           return;
         }
       }
+      // 连点切歌时上一首 demux 失败回调可能晚到，此时新曲已在播
       if (this.trackSwitchBusy || this.hasPendingTrackSwitch()) {
         if (this.isAvPlayerPlaybackHealthy() || playerState !== 'error') {
           HiLog.w(TAG, `avPlayer error ignored during track switch state=${playerState}`);
@@ -1430,7 +1643,16 @@ export class AVPlayerController {
       this.isSeekDone = true;
       this.sliderSeekClosestInFlight = false;
       HiLog.i(TAG, `onSeekDone,isSeekDone: ${this.isSeekDone},seekDoneTime: ${seekDoneTime}`);
-    })
+    });
+
+    // demuxer 可能在 prepared 之后才回调真实/估算 duration；AMR 虚高时常在此时才出现 05:29
+    this.avPlayer.on('durationUpdate', (durationMs: number) => {
+      if (this.suppressTimeUpdateUntilPrepared) {
+        return;
+      }
+      HiLog.i(TAG, `durationUpdate durationMs=${durationMs} openedSize=${this.openedFileSize}`);
+      this.applyResolvedProgressDuration('durationUpdate');
+    });
 
     this.avPlayer.on('audioInterrupt', (info: audio.InterruptEvent) => {
       this.handleAudioInterrupt(info);
@@ -1454,6 +1676,7 @@ export class AVPlayerController {
       HiLog.e(TAG, `toInitialized, avPlayer is null`);
       return;
     }
+    // 旧实例 initialized 入队后 this.avPlayer 可能已换成 idle 新实例
     if (this.avPlayer.state !== 'initialized') {
       HiLog.w(TAG, `toInitialized skip: stale state=${this.avPlayer.state}`);
       return;
@@ -1478,17 +1701,34 @@ export class AVPlayerController {
     this.applyShareInterruptMode();
     this.avPlayer.setVolume(this.volume);
     this.avPlayer.setPlaybackRate(this.resolvePlaybackRate(this.speed));
-    this.avPlayer.loop = this.isLoop;
-    let totalSeconds = Math.floor(this.avPlayer.duration / Constants.A_THOUSAND);
-
-
-    if (this.playProgress) {
-      this.playProgress.totalTime = DateFormatUtil.secondToTime(totalSeconds);
-      HiLog.i(TAG, `toPrepared: totalTime: ${this.playProgress.totalTime}`);
+    // 音频禁用 native loop，单曲循环由 AudioPlayerController.toCompleted 重播，避免 AMR 提前循环
+    if (this.isAudioPage) {
+      this.isLoop = false;
+      this.avPlayer.loop = false;
+    } else {
+      this.avPlayer.loop = this.isLoop;
+    }
+    this.progressDurationMs = this.resolveProgressDurationMs();
+    this.syncProgressTotalTimeUi();
+    HiLog.i(TAG,
+      `toPrepared: totalTime=${this.playProgress !== null ? this.playProgress.totalTime : 'null'} ` +
+        `progressDuration=${this.progressDurationMs} cap=${this.progressDurationCapMs} ` +
+        `avDuration=${this.avPlayer.duration} openedSize=${this.openedFileSize} isAmr=${this.isCurrentAmrMedia()}`);
+    // size 可能在 setFdSrc 触发 prepared 之后才写入；若仍虚高再补一次
+    if (this.isCurrentAmrMedia() && this.openedFileSize <= 0) {
+      this.ensureOpenedFileSizeFromFd();
+      this.applyResolvedProgressDuration('toPrepared-retry');
+    }
+    if (this.amrFileOffset > 0) {
+      this.lastSegmentProgressTime = 0;
+      this.currentTime = this.amrSeekBaseMs;
+      this.lastProgressUpdateTime = this.amrSeekBaseMs;
+      this.initProgress(this.amrSeekBaseMs, true);
+      HiLog.i(TAG, `toPrepared amr segment baseMs=${this.amrSeekBaseMs} offset=${this.amrFileOffset}`);
     }
     const pendingResumeMs = PlaybackResumeContext.consumePendingStartMs();
     const startPaused = PlaybackResumeContext.consumePendingStartPaused();
-    if (pendingResumeMs > 0) {
+    if (pendingResumeMs > 0 && this.amrFileOffset <= 0) {
       HiLog.i(TAG, `toPrepared resumeSeek ms=${pendingResumeMs}`);
       this.initProgress(pendingResumeMs, true);
       this.avPlayer.seek(pendingResumeMs, Constants.SEEK_CLOSEST);
@@ -1509,7 +1749,21 @@ export class AVPlayerController {
       this.updatePlayButtonAccessibility(false);
       return;
     }
-    await this.play();
+    if (this.amrSeekInFlight) {
+      this.amrSeekInFlight = false;
+      if (this.pendingAmrSeekPlay) {
+        this.pendingAmrSeekPlay = false;
+        HiLog.i(TAG, 'toPrepared resume after amr byte seek');
+        await this.play();
+      } else {
+        this.pendingAmrSeekPlay = false;
+        HiLog.i(TAG, 'toPrepared stay paused after amr byte seek');
+        this.syncPlayState(PlayConstants.STATUS_PAUSE);
+        this.updatePlayButtonAccessibility(false);
+      }
+    } else {
+      await this.play();
+    }
 
     let windowClass: window.Window | undefined = this.localStorage?.get<window.Window>('windowClass');
     let regWindowEvent: boolean = !!windowClass && (this.isPcConfig || this.isTabletConfig);
@@ -1710,6 +1964,7 @@ export class AVPlayerController {
   toCompleted(): void {
     HiLog.i(TAG, `toCompleted`);
     this.clearSliderSeekRemap();
+    this.fillProgressToEnd();
     this.avPlayer !== null && this.avPlayer.seek(0);
     this.currentTime = 0;
     if (this.playProgress !== null) {
@@ -1719,6 +1974,196 @@ export class AVPlayerController {
     }
     this.changePlayHoverTips();
     this.syncPlayState(PlayConstants.STATUS_COMPLETE);
+  }
+
+  /**
+   * 播放结束时将进度条拉满。部分格式（短录音/AMR）末尾 timeUpdate 会跳变或停在 duration 之前，
+   * 若仍按整秒取整计算，进度会停在 95%~99%。
+   */
+  protected fillProgressToEnd(): void {
+    if (this.playProgress === null) {
+      return;
+    }
+    const duration = this.getProgressDurationMs();
+    const avDuration = this.avPlayer?.duration ?? 0;
+    const avTime = this.avPlayer?.currentTime ?? 0;
+    const totalTimeText: string = (this.playProgress.totalTime as string) ?? '';
+    // AMR 字节 seek 后片段 EOS 即整曲结束：直接拉满，勿按片段时钟回缩总时长
+    if (this.amrFileOffset > 0 && this.amrFullDurationMs > 0) {
+      this.playProgress.progressVal = Constants.ONE_HUNDRED;
+      if (totalTimeText.length > 0) {
+        this.playProgress.currentTime = totalTimeText;
+      }
+      this.lastProgressUpdateTime = this.amrFullDurationMs;
+      this.currentTime = this.amrFullDurationMs;
+      HiLog.i(TAG,
+        `fillProgressToEnd amr segment eos full=${this.amrFullDurationMs} base=${this.amrSeekBaseMs} avTime=${avTime}`);
+      return;
+    }
+    // completed 瞬间 native 常把 currentTime 写成 duration（本日志 319004→329352），
+    // 不能 Math.max 采信，否则会吃掉真实结束点，表现为“最后约 10s 被掐断”。
+    let position = Math.max(this.currentTime, this.lastProgressUpdateTime);
+    if (avDuration <= 0 || avTime + PlayConstants.TIME_UPDATE_NEAR_END_MS < avDuration) {
+      position = Math.max(position, avTime);
+    }
+    const compareDuration = duration > 0 ? duration : avDuration;
+    if (this.avPlayer?.state === 'completed' && compareDuration > 0 && position > 0 &&
+      position + PlayConstants.TIME_UPDATE_NEAR_END_MS < compareDuration) {
+      // 仅 native completed 时修正虚高时长。进度映射提前结束不得回缩总时长。
+      const actualSeconds = Math.max(1, Math.ceil(position / Constants.A_THOUSAND));
+      const correctedTotal = DateFormatUtil.secondToTime(actualSeconds);
+      this.playProgress.totalTime = correctedTotal;
+      this.playProgress.currentTime = correctedTotal;
+      this.progressDurationMs = Math.max(position, actualSeconds * Constants.A_THOUSAND);
+      HiLog.i(TAG,
+        `fillProgressToEnd correct totalTime pos=${position} progressDuration=${duration} avDuration=${avDuration} avTime=${avTime}`);
+    } else if (totalTimeText.length > 0) {
+      this.playProgress.currentTime = totalTimeText;
+    }
+    this.playProgress.progressVal = Constants.ONE_HUNDRED;
+    if (position > 0) {
+      this.lastProgressUpdateTime = position;
+    }
+  }
+
+  /**
+   * 从当前 fd 补齐 openedFileSize（部分打开路径未带回 size 时兜底）。
+   */
+  private ensureOpenedFileSizeFromFd(): void {
+    if (this.openedFileSize > 0 || this.fdSrc === null) {
+      return;
+    }
+    try {
+      const stat = fs.statSync(this.fdSrc);
+      if (stat.size > 0) {
+        this.openedFileSize = stat.size;
+        this.saveFileInfo.fileSize = stat.size;
+        HiLog.i(TAG, `ensureOpenedFileSizeFromFd size=${stat.size}`);
+      }
+    } catch (e) {
+      HiLog.w(TAG, `ensureOpenedFileSizeFromFd failed: ${JSON.stringify(e)}`);
+    }
+  }
+
+  private isCurrentAmrMedia(): boolean {
+    return MediaFormatUtil.isAmrMedia(
+      this.saveFileInfo.fileName,
+      this.saveFileInfo.uri,
+      this.saveFileInfo.filePath.length > 0 ? this.saveFileInfo.filePath : this.saveFileInfo.mediaPath
+    );
+  }
+
+  private isCurrentMp3Media(): boolean {
+    return MediaFormatUtil.isMp3Media(
+      this.saveFileInfo.fileName,
+      this.saveFileInfo.uri,
+      this.saveFileInfo.filePath.length > 0 ? this.saveFileInfo.filePath : this.saveFileInfo.mediaPath
+    );
+  }
+
+  /**
+   * 解析进度条使用的时长：优先可信的 avPlayer.duration；
+   * AMR 在 demuxer 按时长码率估算严重偏长时，改用文件大小估算。
+   */
+  protected resolveProgressDurationMs(): number {
+    this.ensureOpenedFileSizeFromFd();
+    const avDuration = this.avPlayer?.duration ?? 0;
+    const fileSize = this.openedFileSize > 0 ? this.openedFileSize : this.saveFileInfo.fileSize;
+    const isAmr = this.isCurrentAmrMedia();
+    // 字节 segment 重绑后 avDuration 只是剩余片段，保持整曲时长
+    if (isAmr && this.amrFileOffset > 0 && this.amrFullDurationMs > 0) {
+      this.progressDurationCapMs = this.amrFullDurationMs;
+      HiLog.i(TAG,
+        `resolveProgressDuration keep full amrFull=${this.amrFullDurationMs} segmentAv=${avDuration} offset=${this.amrFileOffset}`);
+      return this.amrFullDurationMs;
+    }
+    this.progressDurationCapMs = 0;
+    HiLog.i(TAG,
+      `resolveProgressDuration begin isAmr=${isAmr} size=${fileSize} opened=${this.openedFileSize} ` +
+        `fileSizeField=${this.saveFileInfo.fileSize} av=${avDuration} name=${this.saveFileInfo.fileName}`);
+    if (isAmr && fileSize > 0) {
+      const amrUpper = MediaFormatUtil.estimateAmrDurationUpperBoundMs(fileSize);
+      const amrTypical = MediaFormatUtil.estimateAmrDurationTypicalMs(fileSize);
+      // 1) 严重虚高：超过 mode0 上限
+      // 2) 轻度虚高：超过 mode7 典型值 + 阈值（本日志 5:29 vs 5:19）
+      const severelyInflated = amrUpper > 0 && avDuration > amrUpper * PlayConstants.AMR_DURATION_INFLATE_RATIO;
+      const mildlyInflated = amrTypical > 0 && avDuration > amrTypical + PlayConstants.AMR_DURATION_OVER_TYPICAL_MS;
+      if (avDuration > 0 && (severelyInflated || mildlyInflated)) {
+        const corrected = amrTypical > 0 ? amrTypical : amrUpper;
+        this.progressDurationCapMs = amrUpper > 0 ? amrUpper : corrected;
+        this.amrFullDurationMs = corrected;
+        HiLog.w(TAG,
+          `resolveProgressDuration AMR inflated av=${avDuration} typical=${amrTypical} upper=${amrUpper} ` +
+            `size=${fileSize} use=${corrected} severe=${severelyInflated} mild=${mildlyInflated}`);
+        return corrected;
+      }
+      if (amrTypical > 0) {
+        this.amrFullDurationMs = amrTypical;
+      }
+      HiLog.i(TAG,
+        `resolveProgressDuration AMR keep av=${avDuration} typical=${amrTypical} upper=${amrUpper} size=${fileSize}`);
+    } else if (isAmr) {
+      HiLog.w(TAG,
+        `resolveProgressDuration AMR size unavailable name=${this.saveFileInfo.fileName} uri=${this.saveFileInfo.uri} av=${avDuration}`);
+    }
+    const metaDuration = this.saveFileInfo.duration;
+    if (isAmr && metaDuration > 0 && avDuration > 0 &&
+      avDuration > metaDuration * PlayConstants.AMR_DURATION_INFLATE_RATIO) {
+      this.progressDurationCapMs = Math.max(metaDuration, MediaFormatUtil.estimateAmrDurationUpperBoundMs(fileSize));
+      this.amrFullDurationMs = metaDuration;
+      HiLog.w(TAG, `resolveProgressDuration use meta=${metaDuration} av=${avDuration}`);
+      return metaDuration;
+    }
+    // 非 AMR mp3：入库精确时长（帧头扫描）明显长于 demuxer 估算时采用精确值，
+    // 避免 VBR 无 Xing 头文件进度条到顶而音频未播完；估算偏长的反向场景
+    // 仍由 fillProgressToEnd 在 EOS 时修正，此处不干预
+    if (!isAmr && metaDuration > 0 && avDuration > 0 && this.isCurrentMp3Media() &&
+      metaDuration > avDuration * PlayConstants.MP3_META_DURATION_PREFER_RATIO) {
+      HiLog.w(TAG, `resolveProgressDuration mp3 prefer meta=${metaDuration} av=${avDuration} name=${this.saveFileInfo.fileName}`);
+      return metaDuration;
+    }
+    return avDuration > 0 ? avDuration : (this.progressDurationMs > 0 ? this.progressDurationMs : 0);
+  }
+
+  public getProgressDurationMs(): number {
+    if (this.progressDurationMs > 0) {
+      return this.progressDurationMs;
+    }
+    return this.avPlayer?.duration ?? 0;
+  }
+
+  /** 将 progressDurationMs 同步到进度条总时长文案 */
+  private syncProgressTotalTimeUi(): void {
+    if (this.playProgress === null || this.progressDurationMs <= 0) {
+      return;
+    }
+    const totalSeconds = Math.floor(this.progressDurationMs / Constants.A_THOUSAND);
+    this.playProgress.totalTime = DateFormatUtil.secondToTime(totalSeconds);
+  }
+
+  /**
+   * 重新解析并应用进度时长（toPrepared / durationUpdate / 打开文件拿到 size 后）。
+   */
+  private applyResolvedProgressDuration(reason: string): void {
+    const previous = this.progressDurationMs;
+    const resolved = this.resolveProgressDurationMs();
+    if (resolved <= 0) {
+      return;
+    }
+    // 已按真实播放拉长过的时长不要被二次 resolve 缩回去（非 AMR 虚高场景）
+    if (previous > 0 && resolved < previous && this.progressDurationCapMs <= 0) {
+      HiLog.i(TAG, `applyResolvedProgressDuration skip shrink prev=${previous} resolved=${resolved} reason=${reason}`);
+      return;
+    }
+    this.progressDurationMs = resolved;
+    this.syncProgressTotalTimeUi();
+    if (previous !== resolved) {
+      HiLog.i(TAG,
+        `applyResolvedProgressDuration reason=${reason} prev=${previous} now=${resolved} cap=${this.progressDurationCapMs}`);
+      if (this.playProgress !== null && this.currentTime > 0) {
+        this.initProgress(this.currentTime, true);
+      }
+    }
   }
 
   toReleased(): void {
@@ -1733,45 +2178,55 @@ export class AVPlayerController {
     if (this.suppressTimeUpdateUntilPrepared) {
       return;
     }
-    HiLog.d(TAG, `timeUpdate:${time} last:${this.lastProgressUpdateTime}`);
-    if (!this.isAcceptableTimeUpdate(time, this.lastProgressUpdateTime)) {
-      HiLog.w(TAG, `time update back, lastProgressUpdateTime:${this.lastProgressUpdateTime} time:${time}`);
-      if (this.isSeekDone) {
-        this.lastProgressUpdateTime = time;
-        HiLog.i(TAG, `lastProgressUpdateTime is update`);
-      }
+    // time 为 AVPlayer 时间轴；AMR 字节 seek 后是片段相对时间
+    const displayTime = this.amrSeekBaseMs + time;
+    HiLog.d(TAG, `timeUpdate:${time} display:${displayTime} lastSeg:${this.lastSegmentProgressTime} last:${this.lastProgressUpdateTime}`);
+    if (!this.shouldAcceptTimeUpdate(time)) {
+      HiLog.w(TAG,
+        `time update back, lastSeg:${this.lastSegmentProgressTime} last:${this.lastProgressUpdateTime} time:${time}`);
+      // 丢弃异常跳变，且不改 last/UI。否则 isSeekDone 默认 true 时，
+      // 结尾 318s→duration 的大跳仍会把进度条提前拉满。
       return;
+    }
+    if (this.amrFileOffset > 0) {
+      this.lastSegmentProgressTime = time;
     }
     // 仅在真正 playing 且进度前进时清除重建标记；暂停后迟到的 timeUpdate 不得清掉
     if (this.playState === PlayConstants.STATUS_START && this.avPlayer?.state === 'playing' &&
-      time > this.lastProgressUpdateTime) {
+      displayTime > this.lastProgressUpdateTime) {
       this.rendererNeedsRebuild = false;
       this.interruptResumeRetryCount = 0;
       this.cancelPlayProgressWatch();
     }
-    this.currentTime = time;
+    this.currentTime = displayTime;
     if (this.playProgress) {
-      if (this.noteSliderSeekTargetEcho(time)) {
+      if (this.noteSliderSeekTargetEcho(displayTime)) {
         this.savePlaylistResumeIfNeeded(false);
         return;
       }
-      this.resolveSliderSeekLanding(time);
+      this.resolveSliderSeekLanding(displayTime);
+      // CLOSEST 重试尚未落地：保持松手点，避免滑块先跳到片头再跳回
       if (this.isAwaitingSliderSeekLanding()) {
         this.savePlaylistResumeIfNeeded(false);
         return;
       }
-      this.dropInsaneSliderSeekRemap(time);
-      const uiTime = this.mapSliderSeekDisplayTime(time);
+      this.dropInsaneSliderSeekRemap(displayTime);
+      const uiTime = this.mapSliderSeekDisplayTime(displayTime);
       this.initProgress(uiTime);
-      this.lastProgressUpdateTime = time;
+      // initProgress 会把 last 写成 uiTime；恢复为解码器时间，后续 timeUpdate 才能继续前进。
+      this.lastProgressUpdateTime = displayTime;
     }
     this.savePlaylistResumeIfNeeded(false);
   }
 
-  private isAcceptableTimeUpdate(time: number, last: number): boolean {
-    if (last === 0) {
-      return true;
-    }
+  /**
+   * 是否接受本次 timeUpdate：正常前进或轻微回退。
+   * 不放行接近结尾的大跨度跳变——日志中曾把 318s 直接跳到 duration(329s)，
+   * 进度条提前满格而当前时间尚未走到总时长；未满进度改由 toCompleted → fillProgressToEnd 处理。
+   * AMR 字节 seek 后用片段相对时间与 lastSegmentProgressTime 比较。
+   */
+  private shouldAcceptTimeUpdate(time: number): boolean {
+    const last = this.amrFileOffset > 0 ? this.lastSegmentProgressTime : this.lastProgressUpdateTime;
     if (time >= last && time <= last + PlayConstants.TIME_UPDATE_MAX_INTERVAL) {
       return true;
     }
@@ -1798,10 +2253,6 @@ export class AVPlayerController {
     this.sliderSeekClosestInFlight = false;
   }
 
-  private getProgressDurationMs(): number {
-    return this.avPlayer?.duration ?? 0;
-  }
-
   /** 短片按时长 12% 收紧，长片不超过 4s，避免片头关键帧把整段进度映射错位 */
   private getMaxSliderSeekRemapGapMs(): number {
     const duration = this.getProgressDurationMs();
@@ -1819,6 +2270,9 @@ export class AVPlayerController {
     return capped;
   }
 
+  /**
+   * 映射后的 UI 时间若与解码器差过远（残留 remap / 整段拉伸），丢弃映射，跟真实时钟。
+   */
   private dropInsaneSliderSeekRemap(displayTime: number): void {
     if (this.sliderSeekBaseActualMs < 0 || this.sliderSeekDisplayOriginMs < 0) {
       return;
@@ -1833,6 +2287,8 @@ export class AVPlayerController {
 
   /**
    * seek / seekDone 会回打松手目标（常见为 floor(hold)），比 hold 略小，不是关键帧时钟。
+   * 只忽略「等于或略早于」hold 的回打；hold 之后的 timeUpdate 是真正在走，
+   * 若也当 echo 丢掉，滑块会冻住再跳（log：1154 被当成 1121 的 echo，卡 1.8s 才到 15%）。
    */
   private noteSliderSeekTargetEcho(displayTime: number): boolean {
     if (!this.isAwaitingSliderSeekLanding()) {
@@ -1848,6 +2304,7 @@ export class AVPlayerController {
 
   /**
    * 关键帧明显落后于松手点 → 建立映射；已超过松手点 → 无需映射，跟真实时钟。
+   * 落点过远（短视频只有片头关键帧）先 SEEK_CLOSEST 一次，仍过远则放弃映射。
    */
   private resolveSliderSeekLanding(displayTime: number): void {
     if (!this.isAwaitingSliderSeekLanding()) {
@@ -1883,7 +2340,9 @@ export class AVPlayerController {
   }
 
   /**
-   * 进度条从松手点继续走，并在片尾与解码器对齐。
+   * 进度条从松手点继续走，并在片尾与解码器对齐：
+   * ui = origin + (actual - base) * (duration - origin) / (duration - base)
+   * 避免恒定 GOP 偏移把进度/当前时间提前拉满，而画面仍在播。
    */
   private mapSliderSeekDisplayTime(displayTime: number): number {
     if (this.sliderSeekBaseActualMs < 0 || this.sliderSeekDisplayOriginMs < 0) {
@@ -1911,8 +2370,8 @@ export class AVPlayerController {
    * @returns 播放位置
    */
   public getPlaybackPositionMs(): number {
-    if (this.avPlayer !== null && this.avPlayer.currentTime > 0) {
-      return this.avPlayer.currentTime;
+    if (this.avPlayer !== null && this.avPlayer.currentTime >= 0) {
+      return this.amrSeekBaseMs + this.avPlayer.currentTime;
     }
     return this.currentTime > 0 ? this.currentTime : 0;
   }
@@ -2017,8 +2476,33 @@ export class AVPlayerController {
   }
 
   setFileInfo(fileInfo: FileInfo, isAudioPage: boolean) {
+    // 冷启动恢复后页面 FileInfo.size 常为 0；同 URI 绑定时保留已 open 的真实大小
+    if (fileInfo.fileSize <= 0 && this.openedFileSize > 0 &&
+      (this.saveFileInfo.uri.length === 0 || this.saveFileInfo.uri === fileInfo.uri)) {
+      fileInfo.fileSize = this.openedFileSize;
+      HiLog.i(TAG, `setFileInfo keep openedSize=${this.openedFileSize} fileName=${fileInfo.fileName}`);
+    }
     this.saveFileInfo = fileInfo;
     this.isAudioPage = isAudioPage;
+  }
+
+  /** 已打开音源的文件字节数（未打开为 0） */
+  public getOpenedFileSize(): number {
+    return this.openedFileSize;
+  }
+
+  /** 打开音源后同步文件大小，供 AMR 等时长校正使用 */
+  protected syncOpenedFileSize(fileSize: number): void {
+    if (fileSize <= 0) {
+      return;
+    }
+    this.openedFileSize = fileSize;
+    this.saveFileInfo.fileSize = fileSize;
+    HiLog.i(TAG, `syncOpenedFileSize size=${fileSize}`);
+    // prepared 已触发但当时 size 尚未写入时，拿到 size 后立即校正
+    if (this.avPlayer !== null && AVPLAYER_PREPARED_STATE.has(this.avPlayer.state)) {
+      this.applyResolvedProgressDuration('syncOpenedFileSize');
+    }
   }
 
   /**
@@ -2051,6 +2535,15 @@ export class AVPlayerController {
    * 必须先 await 会话创建，再写 PLAY + 进度；否则 setPlaybackState 会在 avSession 未就绪时丢包，
    * 随后仅带 position 的 updatePosition 还会把状态清成 INITIAL，引发播控中心误发 pause。
    *
+   * ✅ 修复: setSessionInfo/ensureActive 现已解耦 metadata 写入，
+   *    ensureActive 内 PLAY state 通过 callback-based setAVPlaybackState 立即派发，
+   *    metadata 改走 fire-and-forget 异步链。因此 setSessionInfo 不再被 setAVMetadata 阻塞 3.5s，
+   *    整个 await 链路毫秒级返回，避免 CardMediaController 在 metadata 未到位窗口期
+   *    先发空通知、随后又视作"已发布"拒绝刷新的问题。
+   *
+   * 元数据写入已合并到 ensureActive 内的 scheduleMetadataPublish，不再单独二次刷新；
+   * 切歌后的封面就绪等场景仍由 extractAlbumCover → updateAvSessionMetadata 异步补刷。
+   *
    * @param refreshMetadata 已废弃，保留签名仅为子类 override 兼容
    */
   protected applyControlCenterPlayingState(refreshMetadata: boolean = false): void {
@@ -2059,12 +2552,15 @@ export class AVPlayerController {
   }
 
   private async syncControlCenterPlayingState(): Promise<void> {
+    // ensureActive 已解耦 metadata 后, 此 await 毫秒级返回 (PLAY state 在 ensureActive 内部同步派发)。
     try {
       await this.setSessionInfo(AVSessionManager.PlaybackState.PLAYBACK_STATE_PLAY);
     } catch (err) {
       const error = err as BusinessError;
       HiLog.w(TAG, `syncControlCenterPlayingState setSessionInfo failed code=${error.code} message=${error.message}`);
+      // 不向上抛, 仍执行下面兜底 PLAY state 写入
     }
+    // 兜底再写一次 PLAY state: ensureActive 早退 (uiContext 未绑定/会话失效) 时仍能拿到 PLAY 状态。
     this.setPlaybackState(AVSessionManager.PlaybackState.PLAYBACK_STATE_PLAY);
     this.setPlayingTime(this.avPlayer?.currentTime ?? 0);
   }
@@ -2117,14 +2613,16 @@ export class AVPlayerController {
   /**
    * 创建/激活播控会话并同步状态（委托 {@link PlaybackControlCenterBridge}）
    *
+   * ✅ 修复: ensureActive 内部已将 PLAY state 与 metadata 解耦, 此 await 链路毫秒级返回。
+   *    metadata 写入 (setAVMetadata) 在 ensureActive 末尾通过 scheduleMetadataPublish fire-and-forget
+   *    异步发出, 即使系统忙 (PublicStorageScanner 阻塞 fd) 也不会卡住 PLAY state 上报。
+   *
    * @param state 播放状态
    */
   async setSessionInfo(state: AVSessionManager.PlaybackState) {
     this.ensureControlBridgeBound();
-    let launchOptions: PlaybackControlLaunchOptions | undefined = undefined;
-    if (this.isTabletConfig || this.isPcConfig) {
-      launchOptions = { fileInfo: this.saveFileInfo };
-    }
+    // 全设备设置 LaunchAbility：冷启/会话重建后点击媒体通知才能稳定回前台
+    const launchOptions: PlaybackControlLaunchOptions = { fileInfo: this.saveFileInfo };
     await this.getActiveControlBridge().ensureActive(state, this.buildAvMetadata(), launchOptions);
     this.getActiveControlBridge().updatePosition(this.currentTime);
   }
@@ -2158,6 +2656,7 @@ export class AVPlayerController {
       artist: titleInfo.artist.length > 0 ? titleInfo.artist : this.getString($r('app.string.player_unknown_artist')),
       duration: this.avPlayer?.duration,
     };
+    // 图片加载传输
     const embeddedCover = this.getSessionCoverPixelMap();
     if (embeddedCover !== null) {
       metadata.mediaImage = embeddedCover;
@@ -2231,7 +2730,7 @@ export class AVPlayerController {
     HiLog.i(TAG, `skipToPreviousTrack currentTime:${this.currentTime}`);
     const result = PlaybackQueueManager.getInstance().skipToPrevious();
     if (result === SkipPreviousResult.RESTART_CURRENT) {
-      this.seek(0);
+      this.replayCurrentTrackFromStart();
     }
   }
 
@@ -2240,7 +2739,27 @@ export class AVPlayerController {
     if (PlaybackQueueManager.getInstance().skipToNext()) {
       return;
     }
-    HiLog.i(TAG, 'skipToNextTrack: no next track in queue');
+    HiLog.i(TAG, 'skipToNextTrack: no next track in queue, replay current');
+    this.replayCurrentTrackFromStart();
+  }
+
+  /**
+   * 队列仅一首时，上一首/下一首都从开头重播；暂停或结束态也恢复播放。
+   */
+  protected replayCurrentTrackFromStart(): void {
+    if (this.avPlayer === null) {
+      return;
+    }
+    HiLog.i(TAG, 'replayCurrentTrackFromStart');
+    this.clearSliderSeekRemap();
+    this.currentTime = 0;
+    this.lastProgressUpdateTime = 0;
+    if (this.playProgress !== null) {
+      this.playProgress.progressVal = 0;
+      this.playProgress.currentTime = '00:00';
+    }
+    this.seek(0);
+    this.play();
   }
 
   getVolumeIcon(volumePercentage: number) {
@@ -2329,21 +2848,9 @@ export class AVPlayerController {
         }
 
         this.updatePageVolume(volumeEvent.volume, volumeEvent.volume / this.systemMaxVolume);
-        if (this.showVolumeTimerId !== 0) {
-          clearTimeout(this.showVolumeTimerId);
-          this.showVolumeTimerId = 0;
-        }
-        this.setVolumePanelVisible(true);
-        this.showVolumeTimerId = setTimeout(() => {
-          if (!this.playPage) {
-            HiLog.e(TAG, `hideVolumeProgress, playPage is undefined`);
-            return;
-          }
-
-          this.setVolumePanelVisible(false);
-          clearTimeout(this.showVolumeTimerId);
-          this.showVolumeTimerId = 0;
-        }, PlayConstants.HIDE_VOLUME_PROGRESS_TIME);
+        // 按音量键路径：系统音量条已由系统显示，本地不再弹音量面板，
+        // 避免与系统音量条同时出现（issue IKBXP0 解决方案）。
+        // 手势路径由 VideoPlayerController.onVolumeActionStart 单独显示本地面板。
       });
     } catch (e) {
       let err: BusinessError = e as BusinessError;
@@ -2399,56 +2906,177 @@ export class AVPlayerController {
     return true;
   }
 
-  initProgress(time: number, isForced: boolean = false): void {
+  initProgress(time: number, isForced: boolean = false, isTextForce: boolean = false): void {
     if (this.playProgress === null || (this.avPlayer === null && !isForced)) {
       HiLog.e(TAG, `initProgress avPlayer or playProgress is null`);
       return;
     }
     this.lastProgressUpdateTime = time;
     if (this.isPlayingForPlayState() || isForced) {
-      if (this.isProgressVisible) {
-        this.toFindSecondTime(time);
-      }
-      let curSec2ProgressVal = 0;
-      let nextSec2ProgressVal = 0;
-      const durationMs = this.avPlayer?.duration ?? 0;
-      let preciseTotalSecond = (durationMs / Constants.A_THOUSAND);
-      if (preciseTotalSecond > 0 && this.nowSeconds !== null) {
-        let oneSecond2ProgressVal = Constants.ONE_HUNDRED / preciseTotalSecond;
-        curSec2ProgressVal = this.nowSeconds * oneSecond2ProgressVal;
-        nextSec2ProgressVal = (this.nowSeconds + 1) * oneSecond2ProgressVal;
+      // 拖动期间允许 toFindSecondTime 节流文本；其他路径（timeUpdate/syncBoundPlayProgress）
+      // 一律不节流，保证 currentTime/totalTime 在非拖动阶段始终完整显示。
+      const allowThrottle = this.isMovingProgressSlider && !this.isSeekingFromSlider;
+      if (this.isProgressVisible || isForced || isTextForce) {
+        this.toFindSecondTime(time, isTextForce || isForced, allowThrottle);
+      } else {
+        // 隐藏时仍按秒刷新文案，避免再次显示时滑块与时间严重偏离
+        const hiddenSeconds = Math.floor(time / Constants.A_THOUSAND);
+        if (hiddenSeconds !== this.nowSeconds) {
+          this.toFindSecondTime(time, false, false);
+        } else {
+          this.nowSeconds = hiddenSeconds;
+        }
       }
       if (this.isMovingProgressSlider && !this.isSeekingFromSlider) {
         return;
       }
-      if (this.playProgress.progressVal >= curSec2ProgressVal && this.playProgress.progressVal < nextSec2ProgressVal) {
-        return;
-      } else {
-        this.playProgress.progressVal = curSec2ProgressVal;
-        HiLog.i(TAG, `initProgress with progressVal: ${this.playProgress.progressVal}`);
+      const duration = this.getProgressDurationMs();
+      // 估算偏短时随真实播放拉长；有 AMR cap 时不得超过 cap，避免撑回 demuxer 虚高时长
+      let effectiveDuration = duration;
+      if (effectiveDuration > 0 && time > effectiveDuration) {
+        const avDuration = this.avPlayer?.duration ?? 0;
+        let growCap = avDuration > 0 ? avDuration : time;
+        if (this.progressDurationCapMs > 0) {
+          growCap = Math.min(growCap, this.progressDurationCapMs);
+        }
+        const grown = Math.min(time, growCap);
+        if (grown > effectiveDuration) {
+          this.progressDurationMs = grown;
+          effectiveDuration = grown;
+          this.syncProgressTotalTimeUi();
+          HiLog.i(TAG, `initProgress grow duration to ${effectiveDuration} cap=${this.progressDurationCapMs}`);
+        }
       }
+      // 按毫秒比例计算进度，避免 floor(秒)/总秒 导致短录音永远到不了 100%
+      let progressVal = 0;
+      if (effectiveDuration > 0) {
+        progressVal = time * Constants.ONE_HUNDRED / effectiveDuration;
+        if (progressVal > Constants.ONE_HUNDRED) {
+          progressVal = Constants.ONE_HUNDRED;
+        }
+        if (progressVal < 0) {
+          progressVal = 0;
+        }
+      }
+      const currentProgressVal = this.playProgress.progressVal as number;
+      const progressDelta = progressVal >= currentProgressVal ?
+        (progressVal - currentProgressVal) : (currentProgressVal - progressVal);
+      // 细粒度更新，避免虚高总时长下按整百分位刷新造成“卡顿着跳”
+      if (!isForced &&
+        progressDelta < PlayConstants.PROGRESS_UPDATE_MIN_DELTA &&
+        progressVal < Constants.ONE_HUNDRED - PlayConstants.PROGRESS_UPDATE_MIN_DELTA) {
+        return;
+      }
+      this.playProgress.progressVal = progressVal;
+      HiLog.i(TAG, `initProgress with progressVal: ${this.playProgress.progressVal}`);
     }
   }
 
-  progressUpdateTime(time: number): void {
+  progressUpdateTime(time: number, isForceText: boolean = false): void {
     if (this.avPlayer === null || this.playProgress === null) {
       HiLog.e(TAG, `progressUpdateTime avPlayer or playProgress is null`);
       return;
     }
-    this.toFindSecondTime(time);
+    // 拖动期间 Slider.onChange 每秒触发 30~60 次,允许 toFindSecondTime 节流文本文本
+    // 避免视频页 videoPlayer 持续渲染挤压下重复写 Text state 导致 Slider 跟手变慢。
+    // isForceText 用于 End 时强制刷新文本(seekTime End 走这条路)。
+    const allowThrottle = this.isMovingProgressSlider && !this.isSeekingFromSlider;
+    this.toFindSecondTime(time, isForceText, allowThrottle);
   }
 
-  toFindSecondTime(time: number): void {
-    if (this.playProgress === null) {
+  toFindSecondTime(time: number, isTextForce: boolean = false, isThrottleAllowed: boolean = false): void {
+    if (this.avPlayer === null || this.playProgress === null) {
       HiLog.e(TAG, `toFindSecondTime avPlayer or playProgress is null`);
       return;
     }
     this.lastProgressUpdateTime = time;
-    this.nowSeconds = Math.floor(time / Constants.A_THOUSAND);
-    const durationMs = this.avPlayer?.duration ?? this.saveFileInfo.duration;
-    let totalSeconds = Math.floor(durationMs / Constants.A_THOUSAND);
-    this.playProgress.currentTime = DateFormatUtil.secondToTime(this.nowSeconds);
+    const newNowSeconds = Math.floor(time / Constants.A_THOUSAND);
+    // 节流：仅在拖动期间（progressUpdateTime 调用路径）生效。
+    // 拖动时 Slider.onChange 每秒触发 30~60 次，currentTime/totalTime 文本按秒跳变，
+    // 节流可避免视频页 videoPlayer 持续渲染挤压下重复写 Text state 导致 Slider 跟手变慢。
+    // 非拖动阶段（timeUpdate/syncBoundPlayProgress）一律不节流，保证数据完整刷新。
+    // isTextForce 用于跨页面/新组件首次绑定时强制刷新（见 syncBoundPlayProgress 注释）。
+    if (!isTextForce &&
+      isThrottleAllowed &&
+      newNowSeconds === this.nowSeconds && typeof this.playProgress.totalTime === 'string') {
+      return;
+    }
+    this.nowSeconds = newNowSeconds;
+    let totalSeconds = Math.floor(this.getProgressDurationMs() / Constants.A_THOUSAND);
+    this.playProgress.currentTime = DateFormatUtil.secondToTime(newNowSeconds);
     this.playProgress.totalTime = DateFormatUtil.secondToTime(totalSeconds);
+  }
+
+  /**
+   * AMR 按文件百分比重绑 fdSrc+offset。
+   * demuxer 时间戳 seek 常落到错误字节（日志曾 seek 306s → SeekTo offset:4710），拖近结尾会提前 EOS。
+   */
+  protected async seekAmrByFilePercent(percent: number): Promise<void> {
+    this.ensureOpenedFileSizeFromFd();
+    if (this.avPlayer === null || this.openedFileSize <= 0) {
+      HiLog.e(TAG, `seekAmrByFilePercent skipped: size=${this.openedFileSize}`);
+      return;
+    }
+    const fullDuration = this.getProgressDurationMs();
+    if (fullDuration <= 0) {
+      HiLog.e(TAG, `seekAmrByFilePercent skipped: fullDuration=${fullDuration}`);
+      return;
+    }
+    const clamped = Math.max(0, Math.min(percent, Constants.ONE_HUNDRED));
+    const targetMs = clamped * fullDuration / Constants.ONE_HUNDRED;
+    const header = PlayConstants.AMR_HEADER_BYTES;
+    const frameBytes = PlayConstants.AMR_NB_MODE7_FRAME_BYTES;
+    const fileSize = this.openedFileSize;
+    let offset = 0;
+    if (clamped > 0) {
+      const payload = Math.max(0, fileSize - header);
+      let payloadOff = Math.floor((clamped / Constants.ONE_HUNDRED) * payload);
+      // 至少保留一帧，避免 offset 顶到文件尾导致立即 EOS
+      const maxPayloadOff = Math.max(0, payload - frameBytes);
+      payloadOff = Math.min(payloadOff, maxPayloadOff);
+      payloadOff = Math.floor(payloadOff / frameBytes) * frameBytes;
+      offset = header + payloadOff;
+    }
+    this.amrFullDurationMs = fullDuration;
+    this.amrSeekBaseMs = targetMs;
+    this.amrFileOffset = offset;
+    this.lastSegmentProgressTime = 0;
+    this.lastProgressUpdateTime = targetMs;
+    this.currentTime = targetMs;
+    const shouldResume = this.wasPlayingBeforeSeek;
+    this.pendingAmrSeekPlay = shouldResume;
+    this.wasPlayingBeforeSeek = false;
+    this.isSeekDone = true;
+    this.amrSeekInFlight = true;
+    HiLog.i(TAG,
+      `seekAmrByFilePercent percent=${clamped} offset=${offset} length=${fileSize - offset} ` +
+        `baseMs=${targetMs} full=${fullDuration} resume=${shouldResume}`);
+    // 先释放 AVPlayer 对原 fd 的占用，再读文件拷贝临时片段
+    const idle = await this.ensureIdleForSetSource();
+    if (!idle || this.avPlayer === null) {
+      HiLog.e(TAG, 'seekAmrByFilePercent failed to reach idle');
+      this.amrFileOffset = 0;
+      this.amrSeekBaseMs = 0;
+      this.pendingAmrSeekPlay = false;
+      this.amrSeekInFlight = false;
+      this.closeAmrSeekSegment();
+      return;
+    }
+    if (offset > 0) {
+      if (!this.buildAmrSeekSegment(offset)) {
+        HiLog.e(TAG, 'seekAmrByFilePercent build segment failed, rebind full file');
+        this.closeAmrSeekSegment();
+        this.amrFileOffset = 0;
+        this.amrSeekBaseMs = 0;
+        this.amrSeekInFlight = false;
+        this.pendingAmrSeekPlay = false;
+        this.applyPendingAvPlayerSource();
+        return;
+      }
+    } else {
+      this.closeAmrSeekSegment();
+    }
+    this.applyPendingAvPlayerSource();
   }
 
   seekTime(value: number, mode: SliderChangeMode, isAuidoPage: boolean = true): void {
@@ -2460,6 +3088,7 @@ export class AVPlayerController {
       HiLog.w(TAG, `SeekTime, state is not prepared!`);
       return;
     }
+    const seekDuration = this.getProgressDurationMs();
     if (mode === SliderChangeMode.Begin) {
       if (this.playState === PlayConstants.STATUS_START && this.avPlayer?.state === 'playing') {
         this.wasPlayingBeforeSeek = true;
@@ -2471,8 +3100,9 @@ export class AVPlayerController {
         clearTimeout(this.sliderPlayEvent);
         this.sliderPlayEvent = null;
       }
+      // 新一轮拖动开始，清除上一次 End 的进度映射
       this.clearSliderSeekRemap();
-      let time = value * this.avPlayer.duration / Constants.ONE_HUNDRED;
+      let time = value * seekDuration / Constants.ONE_HUNDRED;
       this.lastProgressUpdateTime = time;
       HiLog.i(TAG, `seek begin, seek mode: ${mode}, seek value: ${value} time:${time}`);
     } else if (mode === SliderChangeMode.Moving || mode === SliderChangeMode.End) {
@@ -2481,18 +3111,37 @@ export class AVPlayerController {
         HiLog.i(TAG, ` SliderChangeMode is End,isSeekDone is ${this.isSeekDone}`);
       }
       let isChangeEnd: boolean = mode === SliderChangeMode.End;
-      let time = value * this.avPlayer.duration / Constants.ONE_HUNDRED;
+      let time = value * seekDuration / Constants.ONE_HUNDRED;
+      // End 时强制刷新进度条 + 文本；Moving 时只更新内部 lastProgressUpdateTime / currentTime，
+      // 跳过 toFindSecondTime 节流判断 + DateFormatUtil 调用，避免视频页 videoPlayer 渲染
+      // 挤压下每秒数十次 DateFormatUtil.secondToTime 让 Slider 跟手变慢。
+      // 松手后 timeUpdate 自然会写正确文本,首次 Enter/syncBoundPlayProgress 走 isTextForce 路径。
+      if (isChangeEnd) {
+        this.progressUpdateTime(time, true);
+      } else {
+        this.lastProgressUpdateTime = time;
+      }
       this.currentTime = time;
+      // 拖动中只刷新进度 UI；连续 seek 会与未完成的上一次冲突（Seeking not completed）导致卡顿
       if (!isChangeEnd) {
+        // 用户重新进入拖动，清除上一次 End 的进度映射，
+        // 避免之前那次 seek 完成的 timeUpdate 错误地把 progressVal 写回关键帧位置
         this.clearSliderSeekRemap();
-        this.progressUpdateTime(time);
         return;
       }
       HiLog.i(TAG, `seek end, seek mode: ${mode}, seek value: ${value}, seekTime: ${time}`);
-      this.progressUpdateTime(time);
+      this.setPlayingTime(time);
+      // isAmr 只在 End 时需要,Moving 算它是浪费（拖动每秒触发 onChange 数十次）
+      const isAmr = this.isCurrentAmrMedia() && this.openedFileSize > 0;
+      if (isAmr) {
+        void this.seekAmrByFilePercent(value);
+        return;
+      }
       if (isAuidoPage) {
         this.avPlayer.seek(time);
       } else {
+        // SEEK_CLOSEST 落在目标附近（可略后）；SEEK_PREV_SYNC 在短视频上常落到片头，
+        // 再补 CLOSEST 会让进度条冻结 1s+ 然后跳变。松手点先锁住滑块，落点后再跟时钟。
         this.avPlayer.seek(time, media.SeekMode.SEEK_CLOSEST);
         this.isSeekingFromSlider = true;
         this.sliderSeekHoldUntilMs = time;
@@ -2501,7 +3150,6 @@ export class AVPlayerController {
         this.initProgress(time, true);
       }
 
-      this.setPlayingTime(time);
       if (this.wasPlayingBeforeSeek) {
         const shouldResume = this.wasPlayingBeforeSeek;
         this.wasPlayingBeforeSeek = false;

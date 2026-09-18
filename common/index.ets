@@ -51,7 +51,8 @@ export { DeviceTypeUtil } from './src/main/ets/utils/DeviceTypeUtil';
 export { appLocalStorage, initAppLocalStorageDefaults, syncAppLocalStorageSafeArea } from './src/main/ets/storage/AppLocalStorage';
 export { SafeAreaConstants } from './src/main/ets/constants/ui/SafeAreaConstants';
 export { MediaCoverDisplayUtil } from './src/main/ets/utils/MediaCoverDisplayUtil';
-export { MediaPlaybackFileOpener, MediaPlaybackOpenResult } from './src/main/ets/utils/MediaPlaybackFileOpener';
+export { MediaPlaybackFileOpener } from './src/main/ets/utils/MediaPlaybackFileOpener';
+export { MediaPlaybackOpenResult } from './src/main/ets/utils/MediaPlaybackOpenResult';
 export {
   MediaPlaybackSourceHelper,
   MediaSourceAccessState

@@ -169,6 +169,7 @@ export struct MainPage {
       .hideTitleBar(true)
       .navDestination(AppNavPageMap)
       .mode(NavigationMode.Stack)
+      .id('players_main_navigation')
 
       if (this.showMiniPlayer && !this.showPlayer && this.currentAudio !== undefined) {
         AudioPlaybackHost({

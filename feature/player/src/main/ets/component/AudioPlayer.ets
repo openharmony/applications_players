@@ -23,6 +23,7 @@ import { MediaCoverDisplayUtil } from '@ohos/common/src/main/ets/utils/MediaCove
 import hiTraceMeter from '@ohos.hiTraceMeter';
 import { TaskId } from '@ohos/common/src/main/ets/constants/system/EventName';
 import { PlayConstants } from '@ohos/common/src/main/ets/constants/player/PlayConstants';
+import { PlaybackResumeContext } from '@ohos/common/src/main/ets/player/PlaybackResumeContext';
 import { PlayerUiConstants } from '../constants/PlayerUiConstants';
 import { PlayingEqualizerBars } from './PlayingEqualizerBars';
 import { PlayingEqualizerConstants } from '../constants/PlayingEqualizerConstants';
@@ -45,6 +46,8 @@ export struct AudioPlayer {
   @Link loadingStatus: LoadingStatus;
   private isPCConfig: boolean = DeviceConfigUtil.checkConfigForPC();
   private equalizerTimer: number = -1;
+  /** 当前封面绑定的曲目 URI，用于区分切歌与元数据补丁 */
+  private coverTrackUri: string = '';
 
   /** 播放态变化时启停封面下方频谱动画 */
   private onPlayStateForEqualizer(): void {
@@ -79,6 +82,7 @@ export struct AudioPlayer {
       this.refreshEmbeddedCover();
     });
     this.playState = this.audioController.getPlayState();
+    this.coverTrackUri = this.fileInfo.uri ?? '';
     this.refreshStoredCover();
     this.syncEqualizerTimer();
 
@@ -106,11 +110,18 @@ export struct AudioPlayer {
       HiLog.i(TAG, `skip firstPlay same active uri`);
       this.playState = this.audioController.getPlayState();
       this.audioController.setFileInfo(this.fileInfo, true);
+      if (PlaybackResumeContext.consumeForceAutoPlay() &&
+        this.playState !== PlayConstants.STATUS_START) {
+        HiLog.i(TAG, 'external open resume play on active uri');
+        void this.audioController.play();
+        this.playState = PlayConstants.STATUS_START;
+      }
     } else if (activeUri.length > 0 && activeUri !== this.fileInfo.uri &&
       this.audioController.hasActivePlayback()) {
       HiLog.i(TAG, `switchToTrack from expanded ui uri change`);
       void this.audioController.switchToTrack(this.fileInfo);
     } else {
+      PlaybackResumeContext.consumeForceAutoPlay();
       this.audioController.setFileInfo(this.fileInfo, true);
       this.audioController.firstPlay(this.fileInfo.uri);
     }
@@ -143,12 +154,19 @@ export struct AudioPlayer {
   }
 
   onFileInfoChange(): void {
-    this.refreshStoredCover();
-    this.coverRevision++;
-    if (this.audioImage !== null) {
-      this.audioImage.release();
-      this.audioImage = null;
+    const uri = this.fileInfo?.uri ?? '';
+    const trackChanged = uri.length > 0 && uri !== this.coverTrackUri;
+    if (trackChanged) {
+      this.coverTrackUri = uri;
+      this.coverRevision++;
     }
+    const prevStored = this.storedCoverUri;
+    this.refreshStoredCover();
+    if (!trackChanged && this.storedCoverUri.length > 0 && this.storedCoverUri !== prevStored) {
+      this.coverRevision++;
+    }
+    // 元数据补丁（如播放后补齐 duration）会克隆 FileInfo，不应清空已提取的内嵌封面
+    this.refreshEmbeddedCover();
   }
 
   aboutToDisappear() {
@@ -176,7 +194,7 @@ export struct AudioPlayer {
         .key(`audio_cover_uri_${this.fileInfo.uri}_${this.coverRevision}`)
         .width(Constants.ALL_PERCENT)
         .height(Constants.ALL_PERCENT)
-        .objectFit(ImageFit.Cover)
+        .objectFit(ImageFit.Contain)
         .focusable(this.isPCConfig && this.windowType === WindowType.UI_EXTENSION_WINDOW ? false : true)
         .draggable(false)
         .id('audio_player_cover_uri_id')
@@ -185,7 +203,7 @@ export struct AudioPlayer {
         .key(`audio_cover_embed_${this.fileInfo.uri}_${this.coverRevision}`)
         .width(Constants.ALL_PERCENT)
         .height(Constants.ALL_PERCENT)
-        .objectFit(ImageFit.Cover)
+        .objectFit(ImageFit.Contain)
         .focusable(this.isPCConfig && this.windowType === WindowType.UI_EXTENSION_WINDOW ? false : true)
         .draggable(false)
         .id('audio_player_image_id')
@@ -200,6 +218,7 @@ export struct AudioPlayer {
   }
 
   build() {
+    // 封面按剩余高度等比缩放（不可 height=100% 再叠 aspectRatio），为起伏特效保留固定行，避免叠到标题
     Column({ space: PlayerUiConstants.COVER_EQUALIZER_GAP }) {
       Stack({ alignContent: Alignment.Center }) {
         Column()
@@ -209,10 +228,9 @@ export struct AudioPlayer {
 
         this.CoverForeground()
       }
-      .width(PlayerUiConstants.COVER_WIDTH_PERCENT)
       .aspectRatio(1)
-      .height(Constants.ALL_PERCENT)
       .constraintSize({ maxWidth: Constants.ALL_PERCENT, maxHeight: Constants.ALL_PERCENT })
+      .layoutWeight(1)
       .borderRadius(PlayerUiConstants.COVER_BORDER_RADIUS)
       .shadow({
         radius: PlayerUiConstants.COVER_SHADOW_RADIUS,
@@ -229,10 +247,13 @@ export struct AudioPlayer {
         barCount: 5,
         barColor: Color.White
       })
+        .flexShrink(0)
+        .margin({ bottom: PlayerUiConstants.EQUALIZER_BOTTOM_GAP })
     }
     .width(Constants.ALL_PERCENT)
     .height(Constants.ALL_PERCENT)
-    .justifyContent(FlexAlign.Start)
+    .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
+    .clip(true)
   }
 }

@@ -27,15 +27,23 @@ export class PlaybackControlConstants {
    * 系统媒体控制卡片在会话刚激活时可能误发 pause（见 isShowPlayButton during render）。
    */
   static readonly REMOTE_PAUSE_GUARD_MS: number = 1500;
+  /** AVSession 错误码：会话不存在（原生句柄已失效，JS 包装仍可能非空） */
+  static readonly ERR_SESSION_NOT_EXIST: number = 6600102;
+  /** 冷启创建会话失败时的最大重试次数 */
+  static readonly SESSION_CREATE_RETRY_TIMES: number = 3;
+  /** 创建重试基础间隔（毫秒），第 n 次为 n * BASE */
+  static readonly SESSION_CREATE_RETRY_BASE_DELAY_MS: number = 120;
+  /** 播放态下会话失效自动恢复的冷却时间（毫秒），避免死循环 */
+  static readonly SESSION_RECOVER_COOLDOWN_MS: number = 2000;
   /** uiContext 未绑定时 ensureActive 重试上限；总耗时不超 3 * 200 = 600ms */
   static readonly UI_CONTEXT_RETRY_TIMES: number = 3;
   /** uiContext 重试基础间隔（毫秒），第 n 次为 n * BASE */
   static readonly UI_CONTEXT_RETRY_DELAY_MS: number = 200;
   /**
-   * setAVMetadata 临时性失败（系统忙/并发写）时的退避重试次数。
-   * 避免 setAVMetadata 长耗时阻塞 ensureActive 整体 await 链路。
+   * setAVMetadata 临时性失败 (系统忙/并发写) 时的退避重试次数。
+   * 修复 setAVMetadata 长耗时阻塞 ensureActive 整体 await 链路的问题。
    */
   static readonly METADATA_PUBLISH_RETRY_TIMES: number = 3;
-  /** setAVMetadata 重试基础间隔（毫秒），第 n 次为 n * BASE */
+  /** setAVMetadata 重试基础间隔 (毫秒), 第 n 次为 n * BASE */
   static readonly METADATA_PUBLISH_RETRY_DELAY_MS: number = 150;
 }

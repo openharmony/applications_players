@@ -25,6 +25,7 @@ import ToolbarItem, { ToolbarArray } from '@ohos/common/src/main/ets/model/Toolb
 import { KeyCode } from '@ohos.multimodalInput.keyCode';
 import { HiLog } from '@ohos/common/src/main/ets/utils/HiLog';
 import DeviceConfigUtil from '@ohos/common/src/main/ets/utils/DeviceConfigUtil';
+import { DeviceTypeUtil } from '@ohos/common/src/main/ets/utils/DeviceTypeUtil';
 import mediaquery from '@ohos.mediaquery';
 import { systemDateTime } from '@kit.BasicServicesKit';
 import { TextConstants } from '@ohos/common/src/main/ets/constants/preview/TxtConstants';
@@ -117,6 +118,8 @@ export struct VideoPlayPage {
   @State toolbarTransitionEnabled: boolean = false;
   @State isScreenLocked: boolean = false;
   @State showUnlockAffordance: boolean = false;
+  /** 首帧已到达：用于延迟控制区浮层的构建，减少首帧组件树规模 */
+  @State hasFirstFrame: boolean = false;
   @ObjectLink toolBarItems: ToolbarArray;
   public onClose?: () => void = undefined;
   @LocalStorageProp('isPcFullScreen') @Watch('isPcFullScreenChanged') isPcFullScreen: boolean = false;
@@ -222,6 +225,7 @@ export struct VideoPlayPage {
     this.viewModel.setLoadingStatus(this.loadingStatus);
     this.viewModel.syncControlsHidden(this.isProgressHide, this.loadingStatus);
     if (this.loadingStatus === LoadingStatus.LOAD_STATE_SUCCESS) {
+      this.hasFirstFrame = true;
       this.applyVideoLayoutRatios(this.videoPlayerSize);
       // 视频准备完成，此时视频像素尺寸已知，延迟创建PiP以使用正确的视频宽高比
       this.tryPrepareAutoPipOnHome();
@@ -413,29 +417,15 @@ export struct VideoPlayPage {
 
   /**
    * 页面初始化：绑定视频 ViewModel、窗口监听、控制器回调和当前文件信息。
+   * 首帧关键路径保持同步精简，非关键操作延后到下一帧。
    */
   aboutToAppear(): void {
     HiLog.i(TAG, `aboutToAppear loadingStatus:${this.loadingStatus}`)
     // 标记视频页存活：PiP 还原回前台时禁止壳层刷浅灰底
     WindowUtil.setVideoPlayerPageActive(true);
-    if (this.videoWinClass) {
-      WindowUtil.applyVideoWindowBackgroundColor(this.videoWinClass)
-        .catch((error: Error) => {
-          HiLog.w(TAG, `aboutToAppear applyVideoWindowBackground failed message=${error.message}`);
-        });
-    }
-    syncAppLocalStorageSafeArea();
-    HiLog.i(TAG, `aboutToAppear statusBarHeight=${this.statusBarHeight} avoidArea=${this.avoidArea}`);
     this.storage = appLocalStorage;
     this.viewModel.addUiStateListener(this.handleUiStateChange);
     this.viewModel.bindStorage(this.storage);
-    this.pipViewModel.bindHost(getContext(this) as Context, () => this.resolvePipContentSizePx());
-    VideoPlaybackSession.getInstance().bindPipSystemLockDelegate(this.pipViewModel);
-    this.videoController.setPhoneInterruptPipHooks(
-      () => this.pipViewModel.suspendForPhoneCall(),
-      () => this.pipViewModel.restoreAfterPhoneCall()
-    );
-    HiLog.i(TAG, 'aboutToAppear pipHostBound=true');
     this.viewModel.setLoadingStatus(this.loadingStatus);
     if (this.fileInfo) {
       this.title = this.fileInfo.fileName;
@@ -445,43 +435,8 @@ export struct VideoPlayPage {
       this.title = this.getString($r('app.string.unknown_file'));
     }
     HiLog.d(TAG, `begin to open video file: %{private}s uri:%{private}s`, this.title ?? '', this.fileInfo?.uri);
-    this.videoFullScreenButton.action = () => {
-      this.immersionAction();
-    };
-    if (this.isPCConfig) {
-      this.menuList.push(this.videoFullScreenButton);
-    }
     this.videoController.initPlayPage(this);
-    this.videoController.setPagePlayStateUpdater((state: number) => {
-      this.playState = state;
-      this.pipViewModel.syncPlaybackControlState(state);
-    });
-    this.videoController.setVolumePanelUpdater((show: boolean) => {
-      this.showVolumeProgress = show;
-      if (this.volumePanelHideTimerId !== -1) {
-        clearTimeout(this.volumePanelHideTimerId);
-        this.volumePanelHideTimerId = -1;
-      }
-      if (show) {
-        this.volumePanelHideTimerId = setTimeout(() => {
-          this.showVolumeProgress = false;
-          this.videoController.setVolumePanelVisible(false);
-          this.volumePanelHideTimerId = -1;
-        }, PlayConstants.HIDE_VOLUME_PROGRESS_TIME);
-      }
-    });
-    this.videoController.setPageVolumeUpdater((volume: number, volumePercentage: number) => {
-      this.volume = volume;
-      this.volumePercentage = volumePercentage;
-    });
-    this.videoController.setBrightnessPanelUpdater((show: boolean) => {
-      this.showBrightnessProgress = show;
-    });
-    this.videoController.setPageBrightnessUpdater((bright: number) => {
-      HiLog.i(TAG, `brightnessUiUpdate bright=${bright}`);
-      this.bright = bright;
-    });
-    
+
     if (!this.videoWinClass) {
       try {
         window.getLastWindow(getContext(this), (err, win) => {
@@ -499,7 +454,61 @@ export struct VideoPlayPage {
     } else {
       this.initWindowProperties();
     }
-    this.mediaListener.on('change', this.orientationMediaCallback);
+
+    // 以下操作不影响视频首帧渲染，延后到下一帧执行
+    setTimeout(() => {
+      if (this.videoWinClass) {
+        WindowUtil.applyVideoWindowBackgroundColor(this.videoWinClass)
+          .catch((error: Error) => {
+            HiLog.w(TAG, `aboutToAppear applyVideoWindowBackground failed message=${error.message}`);
+          });
+      }
+      syncAppLocalStorageSafeArea();
+      HiLog.i(TAG, `aboutToAppear statusBarHeight=${this.statusBarHeight} avoidArea=${this.avoidArea}`);
+      this.pipViewModel.bindHost(getContext(this) as Context, () => this.resolvePipContentSizePx());
+      VideoPlaybackSession.getInstance().bindPipSystemLockDelegate(this.pipViewModel);
+      this.videoController.setPhoneInterruptPipHooks(
+        () => this.pipViewModel.suspendForPhoneCall(),
+        () => this.pipViewModel.restoreAfterPhoneCall()
+      );
+      HiLog.i(TAG, 'aboutToAppear pipHostBound=true');
+      this.videoFullScreenButton.action = () => {
+        this.immersionAction();
+      };
+      if (this.isPCConfig) {
+        this.menuList.push(this.videoFullScreenButton);
+      }
+      this.videoController.setPagePlayStateUpdater((state: number) => {
+        this.playState = state;
+        this.pipViewModel.syncPlaybackControlState(state);
+      });
+      this.videoController.setVolumePanelUpdater((show: boolean) => {
+        this.showVolumeProgress = show;
+        if (this.volumePanelHideTimerId !== -1) {
+          clearTimeout(this.volumePanelHideTimerId);
+          this.volumePanelHideTimerId = -1;
+        }
+        if (show) {
+          this.volumePanelHideTimerId = setTimeout(() => {
+            this.showVolumeProgress = false;
+            this.videoController.setVolumePanelVisible(false);
+            this.volumePanelHideTimerId = -1;
+          }, PlayConstants.HIDE_VOLUME_PROGRESS_TIME);
+        }
+      });
+      this.videoController.setPageVolumeUpdater((volume: number, volumePercentage: number) => {
+        this.volume = volume;
+        this.volumePercentage = volumePercentage;
+      });
+      this.videoController.setBrightnessPanelUpdater((show: boolean) => {
+        this.showBrightnessProgress = show;
+      });
+      this.videoController.setPageBrightnessUpdater((bright: number) => {
+        HiLog.i(TAG, `brightnessUiUpdate bright=${bright}`);
+        this.bright = bright;
+      });
+      this.mediaListener.on('change', this.orientationMediaCallback);
+    }, 0);
   }
 
   private initWindowProperties(): void {
@@ -875,7 +884,7 @@ export struct VideoPlayPage {
    */
   goBack() {
     HiLog.i(TAG, 'goBack called');
-    if (!this.isPCConfig && this.isLandscapeMode && this.videoWinClass) {
+    if (this.isPhoneConfig && !DeviceTypeUtil.isRuntimeLargeScreen() && this.isLandscapeMode && this.videoWinClass) {
       HiLog.i(TAG, 'goBack recover portrait first');
       if (this.orientationTogglePending) {
         HiLog.w(TAG, 'goBack recover portrait ignored pending=true');
@@ -1174,7 +1183,7 @@ export struct VideoPlayPage {
     return VideoPlayerUiConstants.LANDSCAPE_TITLE_BAR_BG;
   }
 
-  /** 标题栏 + 底部进度条浮层：始终挂载，仅用显隐控制，不参与 Column 垂直占位。 */
+  /** 标题栏 + 底部进度条浮层：首帧到达后才构建，减少首帧组件树规模。 */
   @Builder
   VideoControlsOverlay() {
     if (this.windowType === WindowType.MAIN_WINDOW) {
@@ -1362,7 +1371,7 @@ export struct VideoPlayPage {
       HiLog.i(TAG, `toolbarHeight=${this.toolbarHeight}`);
     })
     .width(Constants.ALL_PERCENT)
-    .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
+    .backgroundColor(Color.Black)
   }
 
   /**
@@ -1436,7 +1445,9 @@ export struct VideoPlayPage {
           this.LongPressToAccelerateText()
         }
 
-        this.VideoControlsOverlay()
+        if (this.hasFirstFrame) {
+          this.VideoControlsOverlay()
+        }
 
         this.VideoScreenLockSideButton()
       }
@@ -1501,40 +1512,35 @@ export struct VideoPlayPage {
 
       Stack() {
         Column() {
-          Column() {
-            AVVideoPlayer({
-              surfaceId: this.surfaceId,
-              playVideoModel: this.videoController,
-              isFullScreen: this.isFullScreen || this.isPcFullScreen,
-              breakHwcCompose: this.breakHwcCompose,
-              // PiP 中关掉底边 8vp 黑条，否则小窗底部像黑色遮罩
-              cropBottomGreenEdge: !this.pipSessionActive && (this.videoPixelWidth >= 2560 ||
-                (this.videoPixelWidth > 0 && this.videoPixelHeight > 0 &&
-                  this.videoPixelWidth / this.videoPixelHeight > 2.0) ||
-                this.breakHwcCompose),
-              concealSurface: this.concealVideoSurface,
-              onXComponentControllerReady: (controller: XComponentController) => {
-                HiLog.i(TAG, 'onXComponentControllerReady');
-                this.pipViewModel.setXComponentController(controller);
-              }
-            })
-              .focusOnTouch(true)
-              .focusable(true)
-              .height(this.videoHeightRatio)
-              .width(this.videoWidthRatio)
-              .clip(true)
-              .backgroundColor(this.pipSessionActive ? Color.Transparent : Color.Black)
-          }
-          .alignItems(HorizontalAlign.Center)
-          .justifyContent(FlexAlign.Center)
-          .width('100%')
-          .height('100%')
-          .backgroundColor(this.pipSessionActive ? Color.Transparent : Color.Black)
-          .clip(true)
+          AVVideoPlayer({
+            surfaceId: this.surfaceId,
+            playVideoModel: this.videoController,
+            isFullScreen: this.isFullScreen || this.isPcFullScreen,
+            breakHwcCompose: this.breakHwcCompose,
+            // PiP 中关掉底边 8vp 黑条，否则小窗底部像黑色遮罩
+            cropBottomGreenEdge: !this.pipSessionActive && (this.videoPixelWidth >= 2560 ||
+              (this.videoPixelWidth > 0 && this.videoPixelHeight > 0 &&
+                this.videoPixelWidth / this.videoPixelHeight > 2.0) ||
+              this.breakHwcCompose),
+            concealSurface: this.concealVideoSurface,
+            onXComponentControllerReady: (controller: XComponentController) => {
+              HiLog.i(TAG, 'onXComponentControllerReady');
+              this.pipViewModel.setXComponentController(controller);
+            }
+          })
+            .focusOnTouch(true)
+            .focusable(true)
+            .height(this.videoHeightRatio)
+            .width(this.videoWidthRatio)
+            .clip(true)
+            .backgroundColor(this.pipSessionActive ? Color.Transparent : Color.Black)
         }
+        .alignItems(HorizontalAlign.Center)
+        .justifyContent(FlexAlign.Center)
         .width('100%')
         .height('100%')
         .backgroundColor(this.pipSessionActive ? Color.Transparent : Color.Black)
+        .clip(true)
 
         // 溢绿改由 AVVideoPlayer 恒定细遮罩处理；此处不再叠厚黑条，避免切向黑条弹出
 

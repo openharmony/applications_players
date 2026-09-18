@@ -46,11 +46,13 @@ import {
 } from '@ohos/common/src/main/ets/persistence/preferences/AudioMiniPlayerResumeStore';
 import { PlayAudioLaunchOptions } from '@ohos/common/src/main/ets/persistence/preferences/PlaylistPlaybackResumeTypes';
 import { AudioPlaybackSession } from '@ohos/player/src/main/ets/session/AudioPlaybackSession';
+import { VideoPlaybackSession } from '@ohos/player/src/main/ets/session/VideoPlaybackSession';
 import { appLocalStorage } from '@ohos/common/src/main/ets/storage/AppLocalStorage';
 import { LocalStorageParam } from '@ohos/common/src/main/ets/constants/storage/StorageParam';
 import { MediaProgressNotificationHelper } from '@ohos/common/src/main/ets/notification/MediaProgressNotificationHelper';
 import { ExternalWantConstants } from '../constants/ExternalWantConstants';
 import { ExternalWantResolver } from '../utils/ExternalWantResolver';
+import { FileUtil } from '@ohos/common';
 import { SearchViewModel } from '@ohos/search';
 import { NavRouterHelper } from '../utils/NavRouterHelper';
 import { AppNavRoutes } from '../constants/AppNavRoutes';
@@ -103,6 +105,8 @@ export interface HomeUiState {
   currentVideo: VideoItem | undefined;
   /** 首页发起新播放时递增，供 Player 原子触发播放入口 */
   audioPlayRevision: number;
+  /** 当前播放曲目封面异步就绪时递增，供全屏播放页刷新 coverUri */
+  audioCoverRevision: number;
   mediaList: MediaListUiState;
   /** 是否处于多选模式 */
   isSelectionMode: boolean;
@@ -149,6 +153,7 @@ export class HomeViewModel {
   private currentAudio: AudioItem | undefined = undefined;
   private currentVideo: VideoItem | undefined = undefined;
   private audioPlayRevision: number = 0;
+  private audioCoverRevision: number = 0;
   private mediaListUi: MediaListUiState = HomeViewModel.createDefaultMediaListUiState();
   private listRevision: number = 0;
   private mediaObserverStarted: boolean = false;
@@ -222,6 +227,7 @@ export class HomeViewModel {
   /** 缩略图异步生成完成后刷新列表项封面（uiMediaList 已更新，需同步到 Page @State） */
   private mediaThumbnailListener: (uri: string, fileInfo: FileInfo) => void =
     (uri: string, fileInfo: FileInfo): void => {
+      this.syncPlayingAudioCover(uri, fileInfo);
       const currentType: MediaType = this.getMediaTypeForFilter();
       const itemType: MediaType = fileInfo.mimeType.startsWith('audio/') ? MediaType.AUDIO : MediaType.VIDEO;
       if (currentType !== MediaType.UNKNOWN && currentType !== itemType) {
@@ -235,6 +241,61 @@ export class HomeViewModel {
       this.syncMediaListUiState();
       this.notifyUiState();
     };
+
+  /**
+   * 当前播放曲目封面异步生成后同步到 currentAudio，供全屏播放页刷新 disk cover。
+   * 文管外部打开时曲目可能不在首页列表，但仍需更新播放页封面。
+   */
+  private syncPlayingAudioCover(uri: string, fileInfo: FileInfo): void {
+    if (this.currentAudio === undefined || !this.isSameMediaUri(this.currentAudio.uri, uri)) {
+      return;
+    }
+    let updated = false;
+    if (fileInfo.coverUri.length > 0 && this.currentAudio.fileInfo.coverUri !== fileInfo.coverUri) {
+      this.currentAudio.fileInfo.coverUri = fileInfo.coverUri;
+      updated = true;
+    }
+    if (fileInfo.thumbUri.length > 0 && this.currentAudio.fileInfo.thumbUri !== fileInfo.thumbUri) {
+      this.currentAudio.fileInfo.thumbUri = fileInfo.thumbUri;
+      updated = true;
+    }
+    if (!updated) {
+      return;
+    }
+    this.audioCoverRevision++;
+    HiLog.i(TAG, `Playing audio cover updated uri=${uri} coverUri=${fileInfo.coverUri}`);
+    this.notifyUiState();
+  }
+
+  /** 判断两个媒体 URI 是否指向同一文件（兼容 media/100 与 Users/currentUser 等形式） */
+  private isSameMediaUri(lhs: string, rhs: string): boolean {
+    if (lhs.length === 0 || rhs.length === 0) {
+      return false;
+    }
+    if (lhs === rhs) {
+      return true;
+    }
+    return FileUtil.normalizeMediaUri(lhs) === FileUtil.normalizeMediaUri(rhs);
+  }
+
+  /**
+   * 起播前从已扫描列表补齐封面 URI，避免外部打开时 fileInfo 无 coverUri。
+   */
+  private enrichPlayingAudioCover(audio: AudioItem): void {
+    for (let i = 0; i < this.mediaListUi.mediaItems.length; i++) {
+      const item = this.mediaListUi.mediaItems[i];
+      if (!this.isSameMediaUri(item.uri, audio.uri)) {
+        continue;
+      }
+      if (item.coverUri.length > 0 && audio.fileInfo.coverUri.length === 0) {
+        audio.fileInfo.coverUri = item.coverUri;
+      }
+      if (item.thumbUri.length > 0 && audio.fileInfo.thumbUri.length === 0) {
+        audio.fileInfo.thumbUri = item.thumbUri;
+      }
+      return;
+    }
+  }
 
   private constructor() {
   }
@@ -426,11 +487,15 @@ export class HomeViewModel {
       for (let i = 0; i < entries.length; i++) {
         const entry = entries[i];
         const coverUri = coverMap.get(entry.uri) || '';
+        const entrySize = entry.fileSize ?? 0;
+        const cachedTrack = queue.getTrack(entry.uri);
         tracks.push({
           uri: entry.uri,
           fileName: entry.fileName,
           mimeType: entry.mimeType,
-          coverUri: coverUri
+          coverUri: coverUri,
+          fileSize: entrySize > 0 ? entrySize : (cachedTrack !== null ? cachedTrack.fileSize : 0),
+          durationMs: cachedTrack !== null ? cachedTrack.duration : 0
         });
       }
       const coverCount = tracks.filter((t: AudioMiniPlayerResumeTrack) => t.coverUri.length > 0).length;
@@ -484,6 +549,11 @@ export class HomeViewModel {
     if (this.showMiniPlayer || this.showPlayer) {
       return;
     }
+    const pendingExternal = AppStorage.get<boolean>(ExternalWantConstants.PENDING_PLAY_KEY) ?? false;
+    if (pendingExternal) {
+      HiLog.i(TAG, 'restoreMiniPlayerSessionOnColdStart skipped: external pending play');
+      return;
+    }
     const controller = AudioPlaybackSession.getInstance().getController();
     if (controller.hasActivePlayback()) {
       return;
@@ -496,7 +566,8 @@ export class HomeViewModel {
     const fileInfos: FileInfo[] = [];
     for (let i = 0; i < saved.tracks.length; i++) {
       const track = saved.tracks[i];
-      const fileInfo = new FileInfo(track.fileName, track.uri, track.mimeType);
+      const fileInfo = new FileInfo(track.fileName, track.uri, track.mimeType, track.fileSize ?? 0);
+      fileInfo.duration = track.durationMs ?? 0;
       // 恢复封面 URI
       if (track.coverUri) {
         fileInfo.coverUri = track.coverUri;
@@ -558,6 +629,8 @@ export class HomeViewModel {
     this.setFilter(filter);
     HiLog.i(TAG, `tryPlayPendingExternalFile uri=${uri} mime=${fileInfo.mimeType} isAudio=${payload.isAudio}`);
     if (payload.isAudio) {
+      PlaybackResumeContext.clearPending();
+      PlaybackResumeContext.setForceAutoPlay(true);
       this.playAudio(AudioItem.fromEntityFileInfo(fileInfo));
     } else {
       this.playVideo(VideoItem.fromEntityFileInfo(fileInfo));
@@ -644,7 +717,10 @@ export class HomeViewModel {
     this.startMediaObserver();
     this.syncMediaDisplayState();
     this.syncMediaListUiState();
-    this.loadMediaForCurrentFilter();
+    // 延迟加载媒体列表：先展示首帧，避免 loadMediaFiles 的同步 setData 阻塞首帧渲染
+    setTimeout(() => {
+      this.loadMediaForCurrentFilter();
+    }, 0);
     HiLog.i(TAG, `HomeViewModel initialized, filter=${this.currentFilter}`);
     this.notifyUiState();
   }
@@ -1163,16 +1239,22 @@ export class HomeViewModel {
     const startMs = launchOptions?.startPositionMs ?? 0;
     const startPaused = launchOptions?.startPaused === true;
     const startMinimized = launchOptions?.startMinimized === true;
-    if (startMs > 0 || startPaused) {
+    if (startPaused) {
       PlaybackResumeContext.setPendingStartMs(startMs);
-      if (startPaused) {
-        PlaybackResumeContext.setPendingStartPaused(true);
-      }
+      PlaybackResumeContext.setPendingStartPaused(true);
+    } else if (startMs > 0) {
+      PlaybackResumeContext.setPendingStartMs(startMs);
+      PlaybackResumeContext.setPendingStartPaused(false);
+    } else {
+      PlaybackResumeContext.clearPending();
     }
+    this.enrichPlayingAudioCover(audio);
     this.currentAudio = audio;
     this.currentVideo = undefined;
     this.audioPlayRevision++;
     this.recordRecentAudioPlay(audio);
+    // 冷启动恢复快照跟随当前曲目：点播/切歌后立即持久化，防止重启恢复上一首
+    this.persistMiniPlayerSession();
     if (skipQueueSetup && this.showMiniPlayer) {
       // 队列自动切歌时保持迷你条模式
     } else if (startMinimized) {
@@ -1322,6 +1404,15 @@ export class HomeViewModel {
       return;
     }
     this.showPlayer = false;
+    const hadVideo = this.currentVideo !== undefined;
+    if (hadVideo) {
+      // 视频页出栈：返回首页即暂停视频（NavDestination 缓存复用不触发 aboutToDisappear，释放逻辑不会执行）
+      const videoController = VideoPlaybackSession.getInstance().getActiveController();
+      if (videoController !== null) {
+        HiLog.i(TAG, `syncPlayerNavVisible pause video title=${this.currentVideo?.title}`);
+        videoController.pause();
+      }
+    }
     this.currentVideo = undefined;
     if (this.currentAudio !== undefined) {
       this.ensureAudioQueueRestoredForMiniPlayer();
@@ -1426,7 +1517,8 @@ export class HomeViewModel {
     const fileInfos: FileInfo[] = [];
     for (let i = 0; i < saved.tracks.length; i++) {
       const track = saved.tracks[i];
-      const fileInfo = new FileInfo(track.fileName, track.uri, track.mimeType);
+      const fileInfo = new FileInfo(track.fileName, track.uri, track.mimeType, track.fileSize ?? 0);
+      fileInfo.duration = track.durationMs ?? 0;
       if (track.coverUri) {
         fileInfo.coverUri = track.coverUri;
         fileInfo.thumbUri = track.coverUri;
@@ -1880,6 +1972,7 @@ export class HomeViewModel {
       currentAudio: this.currentAudio,
       currentVideo: this.currentVideo,
       audioPlayRevision: this.audioPlayRevision,
+      audioCoverRevision: this.audioCoverRevision,
       mediaList: this.mediaListUi,
       isSelectionMode: this.mediaViewModel.getIsSelectionMode(),
       selectedUris: this.mediaViewModel.getSelectedUris(),

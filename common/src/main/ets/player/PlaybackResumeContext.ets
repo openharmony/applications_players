@@ -18,6 +18,7 @@
 export class PlaybackResumeContext {
   private static pendingStartMs: number = 0;
   private static pendingStartPaused: boolean = false;
+  private static forceAutoPlay: boolean = false;
 
   public static setPendingStartMs(startMs: number): void {
     PlaybackResumeContext.pendingStartMs = startMs > 0 ? startMs : 0;
@@ -26,6 +27,22 @@ export class PlaybackResumeContext {
   /** 冷启动恢复迷你条：prepared 后 seek 但不自动 play */
   public static setPendingStartPaused(paused: boolean): void {
     PlaybackResumeContext.pendingStartPaused = paused;
+  }
+
+  /** 文管等外部打开：全屏页应自动播放，不复用迷你条暂停态 */
+  public static setForceAutoPlay(force: boolean): void {
+    PlaybackResumeContext.forceAutoPlay = force;
+  }
+
+  public static consumeForceAutoPlay(): boolean {
+    const force = PlaybackResumeContext.forceAutoPlay;
+    PlaybackResumeContext.forceAutoPlay = false;
+    return force;
+  }
+
+  public static clearPending(): void {
+    PlaybackResumeContext.pendingStartMs = 0;
+    PlaybackResumeContext.pendingStartPaused = false;
   }
 
   public static consumePendingStartMs(): number {

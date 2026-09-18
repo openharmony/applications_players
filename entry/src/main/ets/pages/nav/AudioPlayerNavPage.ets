@@ -43,6 +43,7 @@ export struct AudioPlayerNavPage {
 
   private homeViewModel: HomeViewModel = HomeViewModel.getInstance();
   private lastHandledAudioRevision: number = -1;
+  private lastHandledCoverRevision: number = -1;
 
   aboutToAppear(): void {
     HiLog.i(TAG, 'aboutToAppear');
@@ -54,6 +55,7 @@ export struct AudioPlayerNavPage {
     this.audioPlayRevision = state.audioPlayRevision;
     if (state.currentAudio !== undefined) {
       this.mountAudio(state.currentAudio, state.audioPlayRevision);
+      this.lastHandledCoverRevision = state.audioCoverRevision;
     }
   }
 
@@ -71,8 +73,20 @@ export struct AudioPlayerNavPage {
     }
     if (state.audioPlayRevision !== this.lastHandledAudioRevision) {
       this.mountAudio(state.currentAudio, state.audioPlayRevision);
+    } else if (state.audioCoverRevision !== this.lastHandledCoverRevision) {
+      this.syncPlayingCover(state.currentAudio, state.audioCoverRevision);
     }
   };
+
+  /** 当前曲目 disk 封面异步就绪后刷新播放页 FileInfo，不触发切歌 */
+  private syncPlayingCover(audioItem: AudioItem, coverRevision: number): void {
+    if (this.currentFileInfo === null || this.currentFileInfo.uri !== audioItem.uri) {
+      return;
+    }
+    HiLog.i(TAG, `syncPlayingCover fileName=${audioItem.fileName} revision=${coverRevision}`);
+    this.lastHandledCoverRevision = coverRevision;
+    this.currentFileInfo = FileInfo.fromFileOperateFileInfo(audioItem.fileInfo);
+  }
 
   private mountAudio(audioItem: AudioItem, revision: number): void {
     if (revision === this.lastHandledAudioRevision && this.currentFileInfo?.uri === audioItem.uri) {

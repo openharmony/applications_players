@@ -45,6 +45,7 @@ import {
 } from '@ohos/common/src/main/ets/utils/MediaPlaybackSourceHelper';
 import { SessionCoverLoader } from '@ohos/common/src/main/ets/utils/SessionCoverLoader';
 import { PlaybackControlConstants } from '../constants/PlaybackControlConstants';
+import { PlayerUiConstants } from '../constants/PlayerUiConstants';
 import image from '@ohos.multimedia.image';
 import { VideoPipContentSize } from '../constants/VideoPipConstants';
 import { VideoPlaybackSession } from '../session/VideoPlaybackSession';
@@ -107,6 +108,8 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
   private ancoRuningTimer: number = -1;
   /** 媒体库 asset.open 产生的 fd 需 asset.close，与 fs.open 区分 */
   private fdRelease: (() => Promise<void>) | null = null;
+  /** 首帧预热：initPlayPage 中提前打开文件，与 XComponent 渲染表面初始化并行 */
+  private preOpenedFile: MediaPlaybackOpenResult | null = null;
   private sessionCoverPixelMap: image.PixelMap | null = null;
   private sessionCoverLoadKey: string = '';
 
@@ -209,6 +212,50 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
     }
     this.setFileInfo(this.fileInfo, false);
     VideoPlaybackSession.getInstance().bindController(this);
+    // 预热文件打开：与 XComponent 渲染表面初始化并行，减少首帧等待
+    if (this.fileInfo && this.fileInfo.uri.length > 0) {
+      this.preOpenFileAsync(this.fileInfo);
+    }
+  }
+
+  /**
+   * 预热文件打开：在渲染表面就绪前提前执行文件 I/O，并行缩短首帧链路。
+   * 打开结果缓存在 preOpenedFile，openVideoSourceAsync 优先消费。
+   *
+   * @param fileInfo 目标视频文件信息
+   */
+  private preOpenFileAsync(fileInfo: FileInfo): void {
+    MediaPlaybackFileOpener.openReadOnly(fileInfo.uri, fileInfo.fileName)
+      .then((opened: MediaPlaybackOpenResult | null) => {
+        if (opened && this.fileInfo?.uri === fileInfo.uri) {
+          this.preOpenedFile = opened;
+          HiLog.i(TAG, `preOpenFile cached uri=%{private}s fd=${opened.fd}`, fileInfo.uri);
+        } else if (opened) {
+          void opened.release();
+          HiLog.w(TAG, `preOpenFile stale, released fd=${opened.fd}`);
+        }
+      })
+      .catch((_error: Error) => {
+        HiLog.w(TAG, `preOpenFile failed, will fallback to sync open`);
+      });
+  }
+
+  /**
+   * 消费预热缓存的文件句柄。消费后清空缓存，保证切歌时不会误用旧 fd。
+   *
+   * @param uri 当前目标 URI（用于匹配校验）
+   * @returns 缓存的有效打开结果，或 null
+   */
+  private consumePreOpenedFile(uri: string): MediaPlaybackOpenResult | null {
+    if (this.preOpenedFile && this.preOpenedFile.fd > 0) {
+      const cached = this.preOpenedFile;
+      this.preOpenedFile = null;
+      if (cached.fd > 0) {
+        HiLog.i(TAG, `consumePreOpenedFile hit fd=${cached.fd} uri=%{private}s`, uri);
+        return cached;
+      }
+    }
+    return null;
   }
 
   /**
@@ -278,7 +325,7 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
   /**
    * 加载播控中心封面：优先列表 thumbUri，失败则提取首帧（对齐音频 extractAlbumCover 时机）
    */
-  private async loadVideoSessionCover(fileInfo: FileInfo, opened: MediaPlaybackOpenResult): Promise<void> {
+  private async loadVideoSessionCover(fileInfo: FileInfo): Promise<void> {
     const loadKey = `${fileInfo.uri}|${this.fileInfo.thumbUri}`;
     if (loadKey === this.sessionCoverLoadKey && this.sessionCoverPixelMap !== null) {
       return;
@@ -295,11 +342,21 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
       }
       HiLog.w(TAG, `Session cover thumbUri load failed fileName=${fileInfo.fileName} thumbUri=${thumbUri}`);
     }
-    this.sessionCoverPixelMap =
-      await SessionCoverLoader.extractVideoFrameFromFd(opened.fd, opened.size, maxPx);
-    if (this.sessionCoverPixelMap !== null) {
-      HiLog.i(TAG, `Session cover first frame extracted successfully fileName=${fileInfo.fileName}`);
-      return;
+    // 独立打开首帧提取专用 fd：若与 AVPlayer 复用同一 fd，双方并发探测会互相踩
+    // 共享文件偏移，导致 demuxer 时长探测结果随机
+    const coverOpened: MediaPlaybackOpenResult | null =
+      await MediaPlaybackFileOpener.openReadOnly(fileInfo.uri, fileInfo.fileName);
+    if (coverOpened !== null) {
+      try {
+        this.sessionCoverPixelMap =
+          await SessionCoverLoader.extractVideoFrameFromFd(coverOpened.fd, coverOpened.size, maxPx);
+      } finally {
+        await coverOpened.release();
+      }
+      if (this.sessionCoverPixelMap !== null) {
+        HiLog.i(TAG, `Session cover first frame extracted successfully fileName=${fileInfo.fileName}`);
+        return;
+      }
     }
     HiLog.w(TAG, `Session cover unavailable fileName=${fileInfo.fileName}`);
   }
@@ -1266,8 +1323,11 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
       this.openError();
       return;
     }
-    const opened: MediaPlaybackOpenResult | null =
-      await MediaPlaybackFileOpener.openReadOnly(fileInfo.uri, fileInfo.fileName);
+    // 优先消费预热缓存，命中则跳过文件 I/O；未命中回退到同步打开
+    let opened: MediaPlaybackOpenResult | null = this.consumePreOpenedFile(fileInfo.uri);
+    if (!opened) {
+      opened = await MediaPlaybackFileOpener.openReadOnly(fileInfo.uri, fileInfo.fileName);
+    }
     if (this.isSwitchTargetStale(fileInfo.uri, switchGeneration)) {
       if (opened) {
         await opened.release();
@@ -1329,12 +1389,6 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
       return;
     }
     HiLog.i(TAG, `applyVideoFdSource uri=%{private}s fd=${opened.fd}`, fileInfo.uri);
-    await this.loadVideoSessionCover(fileInfo, opened);
-    if (this.isSwitchTargetStale(fileInfo.uri, switchGeneration)) {
-      void opened.release();
-      this.finishParseFileTrace();
-      return;
-    }
     const idle = await this.ensureIdleForSetSource();
     if (!idle) {
       HiLog.e(TAG, `applyVideoFdSource ensureIdle failed uri=%{private}s`, fileInfo.uri);
@@ -1355,6 +1409,9 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
     if (this.pendingSwitchFileInfo === null && this.pendingUri === fileInfo.uri) {
       this.pendingUri = '';
     }
+    // 封面帧提取延后到 fd 源绑定之后并行执行，不阻塞 AVPlayer 解码首帧；
+    // 首帧提取器内部独立打开 fd，不与 AVPlayer 共享文件偏移
+    this.loadVideoSessionCover(fileInfo);
   }
 
   openError(error?: BusinessError): void {
@@ -1525,7 +1582,9 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
 
   toCompleted(): void {
     HiLog.i(TAG, 'toCompleted.');
+    // skipToNext 成功时不会走 super.toCompleted，必须先清映射，否则下一集 0ms 会被加成 GOP 偏移。
     this.clearSliderSeekRemap();
+    this.fillProgressToEnd();
     if (PlaybackQueueManager.getInstance().skipToNext()) {
       return;
     }
@@ -1590,6 +1649,8 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
     this.gestureStartValue = this.lastPageVolumePercentage;
     HiLog.i(TAG, `onVolumeActionStart offsetY=${event.offsetY} startValue=${this.gestureStartValue}`);
     this.setBrightnessPanelVisible(false);
+    // 手势路径：系统音量条不显示，需在本地显示手势反馈面板；
+    // 按音量键路径已由 audioVolumeManager.on('volumeChange') 不再显示本地面板，避免重复
     this.setVolumePanelVisible(true);
   }
 
@@ -1614,6 +1675,10 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
       } else {
         this.setSystemVolume(newVolumePercentage);
       }
+      // 持续手势期间反复调 setVolumePanelVisible(true)，
+      // 触发 setVolumePanelUpdater 里的 3 秒定时器重置，
+      // 避免用户长滑超过 3 秒时面板被旧定时器提前关闭
+      this.setVolumePanelVisible(true);
     } catch (e) {
       let err: BusinessError = e as BusinessError;
       HiLog.e(TAG, `onVolumeActionUpdate error, message:${err.message} code:${err.code}`);
@@ -1658,6 +1723,9 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
       if (this.isPCConfig) {
         WindowUtil.setWindowBrightness(windowClass, PlayConstants.FOLLOW_SYSTEM_BRIGHTNESS);
       }
+      // 持续手势期间反复调 setBrightnessPanelVisible(true)，
+      // 避免用户长滑超过隐藏延时后面板被提前关闭
+      this.setBrightnessPanelVisible(true);
     } catch (e) {
       let err: BusinessError = e as BusinessError;
       HiLog.e(TAG, `onBrightActionUpdate error, message:${err.message} code:${err.code}`);
@@ -1705,24 +1773,8 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
   }
 
   /**
-   * 手势区域高度（vp）：优先视频 Stack 实测高度，与 PanGesture 坐标系一致。
-   *
-   * @returns 手势区域高度（vp）
-   */
-  private resolveGestureAreaHeightVp(): number {
-    const videoSize = this.playPage?.videoPlayerSize as window.Size;
-    if (videoSize !== undefined && videoSize.height > 0) {
-      return videoSize.height as number;
-    }
-    const windowSize = this.resolveGestureWindowSize();
-    if (windowSize !== undefined && windowSize.height > 0) {
-      return px2vp(windowSize.height);
-    }
-    return 0;
-  }
-
-  /**
    * 按手势起点到当前偏移计算亮度/音量百分比（上滑增大、下滑减小）。
+   * 满量程对应手势条高度，使手指滑动距离与条填充变化一致。
    *
    * @param event 手势事件
    * @param startOffsetY 手势起点 offsetY
@@ -1734,12 +1786,8 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
       HiLog.e(TAG, `computeGestureAdjustedValue invalid startValue=${startValue}`);
       return PlayConstants.PLAY_PAGE_DEFAULT_BRIGHTNESS;
     }
-    const areaHeightVp: number = this.resolveGestureAreaHeightVp();
-    if (!Number.isFinite(areaHeightVp) || areaHeightVp <= 0) {
-      HiLog.e(TAG, `computeGestureAdjustedValue areaHeightVp invalid=${areaHeightVp}`);
-      return startValue;
-    }
-    let changePercentage: number = (startOffsetY - event.offsetY) / areaHeightVp;
+    const pillHeightVp: number = PlayerUiConstants.GESTURE_PILL_HEIGHT;
+    let changePercentage: number = (startOffsetY - event.offsetY) / pillHeightVp;
     if (event?.sourceTool === SourceTool.MOUSE && (event.axisVertical != 0 || event.axisHorizontal != 0)) {
       changePercentage *= -1;
     }

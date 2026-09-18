@@ -15,6 +15,7 @@
 
 
 import { AppThemeConstants } from '@ohos/common/src/main/ets/constants/ui/AppThemeConstants';
+import { FontScaleUtil } from '@ohos/common/src/main/ets/utils/FontScaleUtil';
 
 /** bindPopup onStateChange 事件 */
 interface MoreMenuPopupStateEvent {
@@ -49,12 +50,13 @@ export struct HomePageHeader {
   build() {
     Row() {
       Text($r('app.string.home'))
-        .fontSize(26)
-        .fontWeight(600)
+        .fontSize(FontScaleUtil.chromeSize(24))
+        .fontWeight(FontWeight.Medium)
         .fontColor(AppThemeConstants.TEXT_PRIMARY)
         .letterSpacing(-0.5)
-
-      Blank()
+        .maxLines(1)
+        .layoutWeight(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
 
       Row({ space: 8 }) {
         this.IconButton($r('sys.symbol.magnifyingglass'), () => {
@@ -67,6 +69,7 @@ export struct HomePageHeader {
 
         this.MoreMenuButton()
       }
+      .flexShrink(0)
     }
     .width('100%')
     .padding({ left: 14, right: 14, top: 4, bottom: 6 })
@@ -77,7 +80,7 @@ export struct HomePageHeader {
   IconButton(icon: Resource, onClick: () => void) {
     Button({ type: ButtonType.Circle, stateEffect: true }) {
       SymbolGlyph(icon)
-        .fontSize(18)
+        .fontSize(FontScaleUtil.chromeSize(18))
         .fontColor([AppThemeConstants.TEXT_PRIMARY])
         .fontWeight(FontWeight.Medium)
     }
@@ -95,7 +98,7 @@ export struct HomePageHeader {
   MoreMenuButton() {
     Button({ type: ButtonType.Circle, stateEffect: true }) {
       SymbolGlyph($r('sys.symbol.dot_grid_2x2'))
-        .fontSize(18)
+        .fontSize(FontScaleUtil.chromeSize(18))
         .fontColor([AppThemeConstants.TEXT_PRIMARY])
         .fontWeight(FontWeight.Medium)
     }

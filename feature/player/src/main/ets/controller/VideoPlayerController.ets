@@ -67,10 +67,10 @@ const TAG: string = 'VideoPlayerController';
 export class VideoPlayerController extends AVPlayerController implements IPlaybackQueueControlTarget {
   public fileInfo: FileInfo = new FileInfo('', '', '', 0, 0, 0, 0, 0);
   private surfaceID: string = '';
-  /** PiP 期间绑定的 XComponent，用于按显示尺寸重建 surface，避免 4K HWC 硬缩白条 */
+  /** 画中画期间绑定的 XComponent，用于按窗口显示尺寸设置输出宽高 */
   private xComponentController: XComponentController | undefined = undefined;
   private pipSurfaceActive: boolean = false;
-  /** PiP 会话中强制 breakHwc（不区分横竖屏 cover），打断 4K→小窗 HWC 白条 */
+  /** 画中画会话中强制开启 renderGroup，避免高分辨率缩小合成时出现边缘伪影 */
   private pipBreakHwcForced: boolean = false;
   private pipExitConcealTimerId: number = -1;
   private playingUri: string = '';
@@ -108,10 +108,14 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
   private ancoRuningTimer: number = -1;
   /** 媒体库 asset.open 产生的 fd 需 asset.close，与 fs.open 区分 */
   private fdRelease: (() => Promise<void>) | null = null;
-  /** 首帧预热：initPlayPage 中提前打开文件，与 XComponent 渲染表面初始化并行 */
+  /** 首帧预热：initPlayPage 中提前打开文件，与 XComponent 初始化并行 */
   private preOpenedFile: MediaPlaybackOpenResult | null = null;
+  /** 预热 fd 对应的 URI，consume 时必须匹配，避免切集误用上一首 */
+  private preOpenedUri: string = '';
   private sessionCoverPixelMap: image.PixelMap | null = null;
   private sessionCoverLoadKey: string = '';
+  private pipSuspendForCallHook?: () => void;
+  private pipRestoreAfterCallHook?: () => void;
 
   constructor(storage?: LocalStorage) {
     super();
@@ -181,6 +185,7 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
 
   releaseResource(): void {
     void this.releaseSessionCover();
+    this.discardPreOpenedFile('releaseResource');
     if (this.fdRelease) {
       this.fdRelease()
         .catch((error: BusinessError) => {
@@ -212,24 +217,27 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
     }
     this.setFileInfo(this.fileInfo, false);
     VideoPlaybackSession.getInstance().bindController(this);
-    // 预热文件打开：与 XComponent 渲染表面初始化并行，减少首帧等待
+    // 预热文件打开：与 XComponent 初始化并行，减少首帧等待
     if (this.fileInfo && this.fileInfo.uri.length > 0) {
       this.preOpenFileAsync(this.fileInfo);
     }
   }
 
   /**
-   * 预热文件打开：在渲染表面就绪前提前执行文件 I/O，并行缩短首帧链路。
+   * 预热文件打开：在 XComponent 就绪前提前执行文件 I/O，并行缩短首帧链路。
    * 打开结果缓存在 preOpenedFile，openVideoSourceAsync 优先消费。
    *
    * @param fileInfo 目标视频文件信息
    */
   private preOpenFileAsync(fileInfo: FileInfo): void {
-    MediaPlaybackFileOpener.openReadOnly(fileInfo.uri, fileInfo.fileName)
+    const requestUri: string = fileInfo.uri;
+    MediaPlaybackFileOpener.openReadOnly(requestUri, fileInfo.fileName)
       .then((opened: MediaPlaybackOpenResult | null) => {
-        if (opened && this.fileInfo?.uri === fileInfo.uri) {
+        if (opened && this.fileInfo?.uri === requestUri) {
+          this.discardPreOpenedFile('replace');
           this.preOpenedFile = opened;
-          HiLog.i(TAG, `preOpenFile cached uri=%{private}s fd=${opened.fd}`, fileInfo.uri);
+          this.preOpenedUri = requestUri;
+          HiLog.i(TAG, `preOpenFile cached uri=%{private}s fd=${opened.fd}`, requestUri);
         } else if (opened) {
           void opened.release();
           HiLog.w(TAG, `preOpenFile stale, released fd=${opened.fd}`);
@@ -241,20 +249,49 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
   }
 
   /**
-   * 消费预热缓存的文件句柄。消费后清空缓存，保证切歌时不会误用旧 fd。
+   * 丢掉未消费的预热 fd，避免页面销毁或覆盖缓存时泄漏句柄。
+   *
+   * @param reason 丢弃原因
+   */
+  private discardPreOpenedFile(reason: string): void {
+    const cached: MediaPlaybackOpenResult | null = this.preOpenedFile;
+    const cachedUri: string = this.preOpenedUri;
+    this.preOpenedFile = null;
+    this.preOpenedUri = '';
+    if (cached === null || cached.fd <= 0) {
+      return;
+    }
+    HiLog.i(TAG, `discardPreOpenedFile reason=${reason} fd=${cached.fd} uri=%{private}s`, cachedUri);
+    cached.release()
+      .catch((error: BusinessError) => {
+        HiLog.w(TAG, `discardPreOpenedFile release failed message=${error.message} code=${error.code}`);
+      });
+  }
+
+  /**
+   * 消费预热缓存的文件句柄。仅当缓存 URI 与目标一致时命中，避免切集误用上一首 fd。
    *
    * @param uri 当前目标 URI（用于匹配校验）
-   * @returns 缓存的有效打开结果，或 null
+   * @returns 缓存的有效打开结果，或 null（未命中则回退同步打开）
    */
   private consumePreOpenedFile(uri: string): MediaPlaybackOpenResult | null {
-    if (this.preOpenedFile && this.preOpenedFile.fd > 0) {
-      const cached = this.preOpenedFile;
-      this.preOpenedFile = null;
-      if (cached.fd > 0) {
-        HiLog.i(TAG, `consumePreOpenedFile hit fd=${cached.fd} uri=%{private}s`, uri);
-        return cached;
-      }
+    const cached: MediaPlaybackOpenResult | null = this.preOpenedFile;
+    const cachedUri: string = this.preOpenedUri;
+    this.preOpenedFile = null;
+    this.preOpenedUri = '';
+    if (cached === null || cached.fd <= 0) {
+      return null;
     }
+    if (uri.length > 0 && cachedUri === uri) {
+      HiLog.i(TAG, `consumePreOpenedFile hit fd=${cached.fd} uri=%{private}s`, uri);
+      return cached;
+    }
+    HiLog.i(TAG, `consumePreOpenedFile mismatch fd=${cached.fd} cached=%{private}s target=%{private}s`,
+      cachedUri, uri);
+    cached.release()
+      .catch((error: BusinessError) => {
+        HiLog.w(TAG, `consumePreOpenedFile release failed message=${error.message} code=${error.code}`);
+      });
     return null;
   }
 
@@ -378,9 +415,6 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
     return this.pipBackgroundExempt;
   }
 
-  private pipSuspendForCallHook?: () => void;
-  private pipRestoreAfterCallHook?: () => void;
-
   /**
    * 绑定来电时暂停/恢复画中画的页面钩子。
    */
@@ -430,8 +464,7 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
   }
 
   /**
-   * PiP Surface：严格按片源比适配窗口。
-   * 不再减高度：日志里 height-8 会变成 src.y=4 → HWC 扫描线白条。
+   * 画中画 XComponent：按片源宽高比适配窗口，并保持像素对齐以免合成裁剪产生边缘伪影。
    */
   public applyPipDisplayOutputSize(width: number, height: number): void {
     // 拒绝迁窗收尾的 2×2/4×4，避免黑色方块
@@ -483,7 +516,7 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
   }
 
   /**
-   * 主窗 Surface 严格按片源比（不减高度，避免 src.y=4 白条）。
+   * 主窗口 XComponent 按片源宽高比设置输出尺寸。
    */
   public applyAspectMatchedSurfaceSize(): void {
     if (this.xComponentController === undefined || this.avPlayer === null) {
@@ -510,7 +543,7 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
   }
 
   /**
-   * 退出 PiP：恢复与片源同宽高比的主窗 Surface。
+   * 退出画中画：恢复与片源同宽高比的主窗口输出尺寸。
    */
   public restoreDefaultSurfaceSize(): void {
     if (!this.pipSurfaceActive || this.xComponentController === undefined) {
@@ -533,12 +566,12 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
   }
 
   /**
-   * 从画中画回到主界面：强制将 AVPlayer 渲染目标切回主窗口 XComponent Surface
+   * 从画中画回到主界面：将 AVPlayer 渲染目标切回主窗口 XComponent。
    *
    * @param surfaceId 主窗口 XComponent 的 Surface ID
    */
   public restoreMainSurfaceAfterPip(surfaceId: string): void {
-    // PiP 未改 Surface 尺寸时勿 restoreDefault，避免无谓重建闪黑
+    // 画中画未改输出尺寸时勿 restoreDefault，避免无谓重建导致闪烁
     this.restoreDefaultSurfaceSize();
     if (this.avPlayer === null || surfaceId.length === 0) {
       HiLog.w(TAG, `restoreMainSurfaceAfterPip aborted player=${this.avPlayer !== null} surfaceLen=${surfaceId.length}`);
@@ -549,7 +582,7 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
       HiLog.w(TAG, `restoreMainSurfaceAfterPip skipped state=${playerState}`);
       return;
     }
-    // 同一 Surface 再写 surfaceId / adjustVideoSize 会闪一帧，跳过
+    // 同一渲染目标再次绑定或调整尺寸会闪一帧，跳过
     if (this.surfaceID === surfaceId && this.avPlayer.surfaceId === surfaceId) {
       HiLog.i(TAG, `restoreMainSurfaceAfterPip skipped sameSurface state=${playerState}`);
       return;
@@ -844,7 +877,7 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
   }
 
   /**
-   * Surface 内 FIT_CROP：竖屏等比只由 UI contain 完成，不改片源显示比例。
+   * AVPlayer 使用 VIDEO_SCALE_TYPE_FIT_CROP；竖屏等比适配由 UI 层完成，不改变片源显示比例。
    */
   private applyVideoScaleType(): void {
     if (this.avPlayer === null) {
@@ -864,7 +897,7 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
     }
   }
 
-  /** surfaceId 只能在 initialized 写入，其它状态会 5400102 */
+  /** 播放器输出标识仅允许在 initialized 状态写入，其它状态会返回 5400102 */
   private trySetSurfaceId(surfaceId: string): boolean {
     if (this.avPlayer === null || surfaceId.length === 0) {
       return false;
@@ -1000,7 +1033,7 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
       this.playPage.videoPixelHeight = vh;
       HiLog.i(TAG, `syncVideoPixelSize ${vw}x${vh}`);
     }
-    // 片源尺寸一就绪就对齐合成路径与 Surface 比，避免首帧横屏仍走 HWC/16:9
+    // 片源尺寸就绪后对齐合成路径与输出宽高比，避免首帧仍按默认 16:9 合成
     this.syncBreakHwcComposeFlag();
     if (!this.pipSurfaceActive) {
       this.applyAspectMatchedSurfaceSize();
@@ -1233,7 +1266,7 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
     if (this.playPage === null) {
       return;
     }
-    // 切源单飞进行中：只记下 surface，initialized 时再绑定，避免 idle 写 SurfaceID 触发 5400102
+    // 切源进行中：只缓存输出标识，待 initialized 后再绑定，避免 idle 状态写入触发 5400102
     if (this.switchInFlight || this.pendingSwitchFileInfo !== null) {
       this.surfaceID = surfaceId;
       HiLog.i(TAG, `videoSurfaceID surface only during switch, surfaceId=${surfaceId}`);
@@ -1484,7 +1517,7 @@ export class VideoPlayerController extends AVPlayerController implements IPlayba
     if (this.windowType === WindowType.MAIN_WINDOW && this.playPage && this.isSwitch) {
       this.playPage.videoHeightRatio = Constants.ALL_PERCENT;
       this.playPage.videoWidthRatio = Constants.ALL_PERCENT;
-      HiLog.i(TAG, 'toInitialized keep video surface size during switch');
+      HiLog.i(TAG, 'toInitialized keep video output size during switch');
     }
   }
 

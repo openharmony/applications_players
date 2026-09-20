@@ -51,13 +51,13 @@ let TAG = 'AVPlayerController'
 
 /** 生命周期锁的释放回调，避免 ArkTS 在 Promise 闭包里直接改 let */
 class AvPlayerLifecycleUnlock {
-  resolve: () => void = (): void => {
+  public resolve: () => void = (): void => {
   };
 }
 
 export class AVPlayerController {
-  playState: number = PlayConstants.STATUS_PAUSE;
-  progressPlayState: number = PlayConstants.STATUS_PAUSE;
+  public playState: number = PlayConstants.STATUS_PAUSE;
+  public progressPlayState: number = PlayConstants.STATUS_PAUSE;
   public isProgressFocus: boolean = false;
   public isProgressVisible: boolean = true;
   protected avPlayer: media.AVPlayer | null = null;
@@ -664,7 +664,7 @@ export class AVPlayerController {
   }
 
   /**
-   * 重建完成后的钩子（默认空实现）。视频只记录 surface，真正绑定放到 toInitialized。
+   * 重建完成后的钩子（默认空实现）。视频只记录输出标识，真正绑定放到 toInitialized。
    */
   protected onAvPlayerRecreated(): void {
   }
@@ -1596,7 +1596,7 @@ export class AVPlayerController {
         HiLog.w(TAG, 'avPlayer error ignored: stale track switch');
         return;
       }
-      // 5400102 是状态机错误（切源/写渲染表面/scale），不是文件损坏
+      // 5400102 是状态机错误（切源 / 绑定渲染目标 / 设置 scale），不是文件损坏
       if (operateNotPermit) {
         if (!fromInterruptResume &&
           (this.trackSwitchBusy || this.hasPendingTrackSwitch() || this.isAvPlayerPlaybackHealthy())) {

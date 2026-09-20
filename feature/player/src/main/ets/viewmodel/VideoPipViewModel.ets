@@ -107,7 +107,7 @@ export class VideoPipViewModel implements IVideoPipSystemLockDelegate {
   }
 
   /**
-   * Surface 就绪后注册 PiP：用户按 Home / 回桌面时由系统自动进入小窗。
+   * XComponent 就绪后注册画中画：用户按 Home 回桌面时由系统自动进入小窗。
    */
   public async prepareAutoPipOnHome(): Promise<void> {
     HiLog.i(TAG, 'prepareAutoPipOnHome start');
@@ -233,7 +233,7 @@ export class VideoPipViewModel implements IVideoPipSystemLockDelegate {
   }
 
   /**
-   * 从多任务/桌面回到应用：结束画中画并将画面迁回主窗口 Surface
+   * 从多任务/桌面回到应用：结束画中画并将画面迁回主窗口 XComponent
    *
    * @param surfaceIdProvider 主窗口 Surface ID 提供方
    */
@@ -284,10 +284,10 @@ export class VideoPipViewModel implements IVideoPipSystemLockDelegate {
   }
 
   /**
-   * 解析主窗口 XComponent Surface ID（优先控制器实例）
+   * 解析主窗口 XComponent 输出标识（优先控制器实例）
    *
    * @param fallbackProvider 页面 @State 兜底
-   * @returns Surface ID
+   * @returns 主窗口视频输出标识
    */
   private resolveMainSurfaceId(fallbackProvider: () => string): string {
     if (this.xComponentController !== undefined) {
@@ -554,7 +554,7 @@ export class VideoPipViewModel implements IVideoPipSystemLockDelegate {
       this.syncBackgroundExempt();
       const needRestore = this.pendingForegroundRestore;
       this.pendingForegroundRestore = false;
-      // 等系统迁窗动画结束再改 UI / 重绑 Surface，避免「闪一下就没」
+      // 等系统迁窗动画结束再更新 UI 并重新绑定视频输出，避免画面闪断
       this.endPipTransitionQuietAfterSettle((): void => {
         this.videoController.setPipBreakHwcForced(false);
         this.videoController.setPipSessionVisualActive(false);
@@ -585,7 +585,7 @@ export class VideoPipViewModel implements IVideoPipSystemLockDelegate {
   }
 
   /**
-   * 不再跟 sizeChange 改 Surface：日志证明 setXComponentSurfaceSize 会黑闪。
+   * 窗口尺寸变化时不调整 XComponent 输出尺寸，避免缓冲区重建导致画面闪烁。
    */
   private handlePipWindowSizeChange(size: PiPWindow.PiPWindowSize): void {
     HiLog.i(TAG,

@@ -81,7 +81,7 @@ export struct VideoPlayPage {
   /** 片源像素尺寸（布局预估用） */
   @State videoPixelWidth: number = 0;
   @State videoPixelHeight: number = 0;
-  /** 高分辨率竖屏 contain：renderGroup 消白条（不改视频比例） */
+  /** 高分辨率竖屏 contain：renderGroup 消除合成边缘伪影（不改视频比例） */
   @State breakHwcCompose: boolean = false;
   /** 旋转过渡：底边贴边遮绿（非整页黑屏） */
   @State concealVideoSurface: boolean = false;
@@ -90,7 +90,7 @@ export struct VideoPlayPage {
   @State bottomEdgeMaskVp: number = BOTTOM_ORIENTATION_MASK_VP;
   private concealSurfaceTimerId: number = -1;
   /** 切向中推迟关闭 renderGroup，等底边遮罩仍在时再关，减轻竖→横底边绿闪 */
-  pendingBreakHwcDisable: boolean = false;
+  public pendingBreakHwcDisable: boolean = false;
   @State videoPlayerSize: window.Size = { width: 0, height: 0 };
   @State isFullScreen: boolean = false;
   @State isImmersion: boolean = false;
@@ -372,7 +372,7 @@ export struct VideoPlayPage {
 
   /**
    * LocalStorage「app_in_background」变化回调（MainAbility 前后台同步），非 UIAbility.onBackground。
-   * 退后台：暂停或维持 PiP；回前台：结束画中画并恢复主窗口 Surface。
+   * 退后台：暂停或维持画中画；回前台：结束画中画并恢复主窗口视频输出。
    */
   onAppInBackgroundChange(): void {
     if (!this.isAppInBackground) {
@@ -982,7 +982,7 @@ export struct VideoPlayPage {
   }
 
   /**
-   * 同步 UI 层 Surface 比例，与横竖屏状态同帧更新，避免旋转后先留白再恢复。
+   * 同步视频画面布局比例，与横竖屏状态同帧更新，避免旋转后先留白再恢复。
    *
    * @param containerSize 视频容器尺寸
    */
@@ -1392,7 +1392,7 @@ export struct VideoPlayPage {
   }
 
   /**
-   * Surface 就绪后注册回桌面自动画中画（手机主窗口）。
+   * XComponent 就绪后注册回桌面自动画中画（手机主窗口）。
    */
   private tryPrepareAutoPipOnHome(): void {
     if (!this.isPhoneConfig || this.windowType !== WindowType.MAIN_WINDOW) {

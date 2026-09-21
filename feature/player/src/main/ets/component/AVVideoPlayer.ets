@@ -36,7 +36,7 @@ export struct AVVideoPlayer {
   @Prop concealSurface: boolean = false;
   private playVideoModel: VideoPlayerController | null = null;
   private xComponentController: XComponentController = new XComponentController();
-  onXComponentControllerReady?: (controller: XComponentController) => void = undefined;
+  public onXComponentControllerReady?: (controller: XComponentController) => void = undefined;
 
   onFullScreenChange(): void {
     if (this.playVideoModel) {

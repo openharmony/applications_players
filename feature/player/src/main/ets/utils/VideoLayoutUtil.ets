@@ -16,8 +16,8 @@
 import { Constants } from '@ohos/common/src/main/ets/constants/ui/Constants';
 
 export class VideoLayoutRatio {
-  widthRatio: string;
-  heightRatio: string;
+  public widthRatio: string;
+  public heightRatio: string;
 
   constructor(widthRatio: string, heightRatio: string) {
     this.widthRatio = widthRatio;
@@ -26,8 +26,8 @@ export class VideoLayoutRatio {
 }
 
 export class VideoLayoutSize {
-  width: number;
-  height: number;
+  public width: number;
+  public height: number;
 
   constructor(width: number, height: number) {
     this.width = width;
@@ -63,7 +63,7 @@ export function normalizeContainerForOrientation(
 }
 
 /**
- * 将布局像素对齐为偶数，避免 NV12/HWC 奇数高（如 503）与 src.x=1 类裁剪产生扫描线白条。
+ * 将布局像素对齐为偶数，满足 NV12 色度采样与 Hardware Composer 对齐要求。
  */
 export function alignEvenPx(value: number): number {
   const floored = Math.floor(value);
@@ -72,7 +72,7 @@ export function alignEvenPx(value: number): number {
 }
 
 /**
- * 视频 Surface 对齐到 4 的倍数（NV12 色度 / 硬解常见要求），向下取整。
+ * 将视频输出像素对齐到 4 的倍数（NV12 色度 / 硬解常见要求），向下取整。
  */
 export function alignSurfacePx(value: number): number {
   const floored = Math.floor(value);
@@ -106,13 +106,13 @@ export function computeVideoContainRatio(
   );
 }
 
-/** 横屏/PC 全屏：Surface 铺满容器。 */
+/** 横屏/PC 全屏：视频画面铺满容器。 */
 export function computeVideoCoverRatio(): VideoLayoutRatio {
   return new VideoLayoutRatio(Constants.ALL_PERCENT, Constants.ALL_PERCENT);
 }
 
 /**
- * 按片源宽高比生成 Surface 像素尺寸（长边不超过 maxEdge）。
+ * 按片源宽高比生成视频输出像素尺寸（长边不超过 maxEdge）。
  * 避免默认 1920×1080 与超宽片（如 3840×1608）宽高比不一致导致 UI contain 后被拉伸。
  */
 export function computeAspectMatchedSurfaceSize(

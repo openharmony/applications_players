@@ -14,7 +14,7 @@
  */
 
 import { promptAction } from '@kit.ArkUI';
-import { MediaSourceAccessState } from '@ohos/common';
+import { MediaSourceAccessState, PlaybackResumeContext } from '@ohos/common';
 
 /**
  * 按源文件预检结果弹出准确 Toast，避免一律「源文件已被删除」
@@ -22,6 +22,10 @@ import { MediaSourceAccessState } from '@ohos/common';
  * @param state 存在性 / 打开失败归因
  */
 export function showMediaSourceFailureToast(state: MediaSourceAccessState): void {
+  // 冷启动暂停恢复会先开源：失败时吃掉 startPaused，等用户点播放再提示
+  if (PlaybackResumeContext.consumePendingStartPaused()) {
+    return;
+  }
   let message: Resource;
   if (state === MediaSourceAccessState.MISSING) {
     message = $r('app.string.source_file_missing');

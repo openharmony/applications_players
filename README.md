@@ -2,7 +2,7 @@
 
 ## 简介
 
-**播放器**（包名：`com.ohos.players`）是 OpenHarmony 中预置的**系统应用**，提供媒体列表浏览、音视频播放、歌单管理与搜索等能力，适配手机、平板设备形态。
+**播放器**（包名：`com.ohos.players`）是 OpenHarmony 标准系统中预置的**系统应用**，提供媒体列表浏览、音视频播放、歌单管理与搜索等能力，适配手机、平板设备形态。
 
 本应用为系统预置应用，用户可从桌面图标、文件管理器「打开方式」等场景进入播放器。
 
@@ -416,6 +416,7 @@ applications_players
 │     └─utils/                          # 通用工具，包括日志、元数据解析、设备配置等
 ├─hvigor                                # 构建工具配置
 ├─signature                             # 签名证书与 profile
+├─bundle.json                           # 部件描述：组件名、源码路径、系统类型与构建入口
 ├─docs/figures/                         # 架构/构建文档图片
 ├─build-profile.json5                   # 工程级配置
 ├─oh-package.json5

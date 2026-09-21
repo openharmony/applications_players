@@ -1,0 +1,32 @@
+{
+  "name": "@ohos/applications_players",
+  "description": "Players app for standard system.",
+  "version": "3.0",
+  "license": "Apache License 2.0",
+  "publishAs": "code-segment",
+  "segment": {
+    "destPath": "applications/standard/players"
+  },
+  "dirs": {},
+  "scripts": {},
+  "component": {
+    "name": "applications_players",
+    "subsystem": "applications",
+    "syscap": [],
+    "features": [],
+    "adapted_system_type": [
+      "standard"
+    ],
+    "rom": "3489KB",
+    "ram": "115388KB",
+    "deps": {
+      "components": [],
+      "third_party": []
+    },
+    "build": {
+      "sub_component": [],
+      "inner_kits": [],
+      "test": []
+    }
+  }
+}

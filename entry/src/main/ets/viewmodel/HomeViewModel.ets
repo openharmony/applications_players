@@ -425,6 +425,29 @@ export class HomeViewModel {
     this.restoreMiniPlayerSessionOnColdStart();
     this.flushDeferredQueueUiIfNeeded();
     this.notifyUiState();
+    this.reconcileMissingMediaOnForeground();
+  }
+
+  /**
+   * 从文管等外部应用回前台时，按源文件存在性剔除已删除媒体。
+   * 冷启动列表尚未加载时 dataArray 为空，此处会直接跳过。
+   */
+  private reconcileMissingMediaOnForeground(): void {
+    const dataSource = this.mediaViewModel.getMediaDataSource();
+    if (!dataSource) {
+      return;
+    }
+    void dataSource.reconcileMissingFiles().then((removed: number) => {
+      if (removed <= 0) {
+        return;
+      }
+      this.syncMediaDisplayState();
+      this.syncMediaListUiState();
+      this.notifyUiState();
+      HiLog.i(TAG, `reconcileMissingMediaOnForeground removed=${removed}`);
+    }).catch((error: Error) => {
+      HiLog.e(TAG, `reconcileMissingMediaOnForeground failed: ${error.message}`);
+    });
   }
 
   /**

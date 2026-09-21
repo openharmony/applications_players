@@ -306,6 +306,10 @@ export class AudioPlayerController extends AVPlayerController implements IPlayba
   async firstPlay(uri: string, switchGeneration?: number): Promise<void> {
     // 重置停止标志（允许正常播放）
     this._isStopped = false;
+    // 开源失败时 playingUri 不会写入；记下 uri，用户点播放才能重绑并弹损坏提示
+    if (this.fileInfo.uri.length === 0) {
+      this.fileInfo.uri = uri;
+    }
     this.startTime = Date.now();
     hiTraceMeter.startAsyncTrace(hiTraceMeter.HiTraceOutputLevel.COMMERCIAL,
       'AUDIO_PARSE_FILE', TaskId.PARSE_FILE, 'PARSE_FILE');

@@ -325,18 +325,16 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
       // 立即显示内存缓存（如果有）- 使用 UNKNOWN key（包含全部类型数据）
       if (!forceRefresh && this.cacheManager.hasCache(MediaType.UNKNOWN)) {
         const cachedData = this.cacheManager.getFromCache(MediaType.UNKNOWN);
-        this.setData(cachedData);
-        // 清除初始化阶段的抑制标志，确保本次 setData 通知 UI
-        this.suppressDataNotification = false;
-        this.notifyDataChanged();
-        HiLog.i(TAG, `Loaded all data from memory cache: ${cachedData.length} files, filtered to ${MediaType[mediaType]}: ${this.filteredArray.length}`);
+        const liveCached = await this.purgeMissingFilesFromSnapshot(cachedData);
+        this.displayLiveMediaList(liveCached);
+        HiLog.i(TAG, `Loaded all data from memory cache: ${liveCached.length} files, filtered to ${MediaType[mediaType]}: ${this.filteredArray.length}`);
         return;
       }
 
       // 确保数据库已初始化后再查询
       await this.dbManager.init();
 
-// 关键修复：强制刷新时执行完整扫描
+      // 关键修复：强制刷新时执行完整扫描
       // 修复根因：forceRefresh=true 仅从本地 DB 查询，无法发现 mediatool 导入的新文件
       // 完整扫描通过 UserFileScanner / MediaLibraryScanner 查询系统媒体数据库，可以发现新文件
       if (forceRefresh) {
@@ -345,19 +343,15 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
         return;
       }
 
-      // 立即显示数据库缓存（不等待扫描）
+      // 立即显示数据库缓存（不等待扫描），但必须先剔除源文件已删除的记录
       // 查询全部类型数据，setData 自动按 mediaType 过滤显示
       const dbData = await this.dbManager.queryMediaMetadata();
       if (dbData.length > 0) {
-        // 冷启动优化：DB 有缓存时立即通知 UI 显示，不等待文件系统扫描+fillDuration
-        this.suppressDataNotification = false;
-        this.setData(dbData);
-        // 缓存全部类型数据，用 UNKNOWN key
-        this.cacheManager.updateCache(MediaType.UNKNOWN, dbData);
-        this.notifyDataChanged();
-        HiLog.i(TAG, `Loaded all from database cache: ${dbData.length} files, filtered to ${MediaType[mediaType]}: ${this.filteredArray.length}`);
+        const liveData = await this.purgeMissingFilesFromSnapshot(dbData);
+        this.displayLiveMediaList(liveData);
+        HiLog.i(TAG, `Loaded all from database cache: ${liveData.length} files, filtered to ${MediaType[mediaType]}: ${this.filteredArray.length}`);
 
-        // 延迟到首帧后全量扫描，发现关闭期间媒体库/公共目录的增删并刷新列表
+        // 延迟到首帧后全量扫描，发现关闭期间媒体库/公共目录的新增并刷新列表
         setTimeout(async () => {
           try {
             await this.scanMediaFiles(MediaType.UNKNOWN);
@@ -369,7 +363,7 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
         // 数据库无数据，执行全量扫描（首次启动场景）
         HiLog.i(TAG, `No cached data in database, performing full scan (all types)`);
         await this.scanMediaFiles(MediaType.UNKNOWN);
-}
+      }
     } catch (error) {
       HiLog.e(TAG, `Failed to load media files: ${error}`);
       throw new Error(`加载媒体文件失败: ${error}`);
@@ -480,7 +474,7 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
     // DB 软删除（is_valid=0），仅移除展示，不删除本地源文件
     await this.dbManager.batchMarkAsInvalid(uris);
     // 同步内存缓存，避免非强制刷新时从缓存复现已删项
-    this.cacheManager.updateCache(MediaType.UNKNOWN, remainAll);
+    this.updateOrClearMemoryCache(remainAll);
     // 重建 dataArray + filteredArray 并通知 UI（setData 自含过滤/排序/notify）
     this.setData(remainAll);
     HiLog.i(TAG, `softDeleteByUris removed=${removedCount} remain=${remainAll.length}`);
@@ -858,41 +852,70 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
   /**
    * 检查文件是否存在，移除已删除的文件（DB 软删除 + 内存清理）。
    * 扫描完成后调用，确保列表中不包含源文件已被删除的条目。
-   * 对 file://media URI 使用 MediaPlaybackFileOpener 真正打开检测，
-   * 对 file://docs / 沙箱 URI 使用 fs.accessSync 检查物理文件。
    */
   async removeDeletedFiles(files: FileInfo[]): Promise<number> {
     if (files.length === 0) {
       return 0;
     }
+    const deletedUris = await this.collectMissingFileUris(files);
+    if (deletedUris.length === 0) {
+      return 0;
+    }
+
+    HiLog.i(TAG, `Removed deleted files: ${deletedUris.length}`);
+    await this.softDeleteByUris(deletedUris);
+    return deletedUris.length;
+  }
+
+  /**
+   * 首屏前剔除已删除源文件并写回 DB，避免冷启动先展示失效缓存。
+   */
+  private async purgeMissingFilesFromSnapshot(files: FileInfo[]): Promise<FileInfo[]> {
+    const missingUris = await this.collectMissingFileUris(files);
+    if (missingUris.length === 0) {
+      return files;
+    }
+    const missingSet: Set<string> = new Set(missingUris);
+    const liveFiles = files.filter((file: FileInfo) => !missingSet.has(file.uri));
+    await this.dbManager.batchMarkAsInvalid(missingUris);
+    HiLog.i(TAG, `Purged missing files before display: ${missingUris.length}, remain=${liveFiles.length}`);
+    return liveFiles;
+  }
+
+  /**
+   * 热启动/回前台：按当前列表核对源文件，立刻剔除已删除项并通知 UI。
+   *
+   * @returns 移除的条目数
+   */
+  public async reconcileMissingFiles(): Promise<number> {
+    if (this.isScanning()) {
+      HiLog.i(TAG, 'reconcileMissingFiles skipped: scan running');
+      return 0;
+    }
+    const current = this.getDataArray();
+    if (current.length === 0) {
+      return 0;
+    }
+    const liveFiles = await this.purgeMissingFilesFromSnapshot(current);
+    const removed = current.length - liveFiles.length;
+    if (removed === 0) {
+      return 0;
+    }
+    this.displayLiveMediaList(liveFiles);
+    HiLog.i(TAG, `reconcileMissingFiles removed=${removed} remain=${liveFiles.length}`);
+    return removed;
+  }
+
+  private async collectMissingFileUris(files: FileInfo[]): Promise<string[]> {
     const deletedUris: string[] = [];
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
       if (file.uri.indexOf('/.Trash') >= 0) {
         deletedUris.push(file.uri);
         continue;
       }
       try {
-        let exists = false;
-        if (file.uri.startsWith('file://media/')) {
-          // 媒体库 URI：真正打开文件检测
-          const opened = await MediaPlaybackFileOpener.openReadOnly(file.uri, file.fileName);
-          if (opened) {
-            await opened.release();
-            exists = true;
-          }
-        } else {
-          // file://docs / 沙箱 URI：fs.accessSync 检查物理文件
-          try {
-            fs.accessSync(file.uri);
-            exists = true;
-          } catch (_) {
-            const path = FileUtil.getPathFromUri(file.uri);
-            if (path.length > 0 && path !== file.uri) {
-              fs.accessSync(path);
-              exists = true;
-            }
-          }
-        }
+        const exists = await this.sourceFileExists(file);
         if (!exists) {
           deletedUris.push(file.uri);
           HiLog.w(TAG, `Source file deleted: ${file.fileName} uri=${file.uri}`);
@@ -902,14 +925,49 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
         HiLog.w(TAG, `File check exception treated as deleted: ${file.fileName} error=${error}`);
       }
     }
+    return deletedUris;
+  }
 
-    if (deletedUris.length === 0) {
-      return 0;
+  private async sourceFileExists(file: FileInfo): Promise<boolean> {
+    if (file.uri.startsWith('file://media/')) {
+      const opened = await MediaPlaybackFileOpener.openReadOnly(file.uri, file.fileName);
+      if (opened) {
+        await opened.release();
+        return true;
+      }
+      return false;
     }
+    try {
+      fs.statSync(file.uri);
+      return true;
+    } catch (_) {
+      const storedPath = file.path ?? '';
+      const path = storedPath.length > 0 ? storedPath : FileUtil.getPathFromUri(file.uri);
+      if (path.length > 0 && path !== file.uri) {
+        try {
+          fs.statSync(path);
+          return true;
+        } catch (__) {
+          return false;
+        }
+      }
+      return false;
+    }
+  }
 
-    HiLog.i(TAG, `Removed deleted files: ${deletedUris.length}`);
-    await this.softDeleteByUris(deletedUris);
-    return deletedUris.length;
+  private displayLiveMediaList(files: FileInfo[]): void {
+    this.suppressDataNotification = false;
+    this.setData(files);
+    this.updateOrClearMemoryCache(files);
+    this.notifyDataChanged();
+  }
+
+  private updateOrClearMemoryCache(files: FileInfo[]): void {
+    if (files.length > 0) {
+      this.cacheManager.updateCache(MediaType.UNKNOWN, files);
+      return;
+    }
+    this.cacheManager.clearCache(MediaType.UNKNOWN);
   }
 
   /**
@@ -1110,10 +1168,16 @@ export class MediaDataSource extends FileDataSource implements IMediaDataSource 
       await this.dbManager.init();
 
       // 从数据库查询全部类型数据（mtime 值来自 DB，与初始加载一致）
-      const updatedData = await this.dbManager.queryMediaMetadata();
+      const dbData = await this.dbManager.queryMediaMetadata();
+      const updatedData = await this.purgeMissingFilesFromSnapshot(dbData);
 
       if (updatedData.length === 0) {
-        HiLog.i(TAG, `Incremental refresh: no data in DB, skipping`);
+        if (this.getDataArray().length > 0) {
+          HiLog.i(TAG, 'Incremental refresh: no live data, clearing displayed list');
+          this.displayLiveMediaList([]);
+        } else {
+          HiLog.i(TAG, `Incremental refresh: no data in DB, skipping`);
+        }
         return;
       }
 

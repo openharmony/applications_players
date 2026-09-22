@@ -72,6 +72,9 @@ export struct PlaylistAddAudioNavPage {
       },
       onAddTrack: (track: FileInfo) => {
         this.viewModel.addAudioToCurrentPlaylist(track);
+      },
+      onEnsureCover: (track: FileInfo) => {
+        this.viewModel.ensureAddAudioTrackCover(track);
       }
     })
       .width('100%')

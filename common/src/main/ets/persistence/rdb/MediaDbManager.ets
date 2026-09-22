@@ -505,6 +505,111 @@ export class MediaDbManager {
   }
 
   /**
+   * 从全部歌单移除指定 URI（文管删除/扫描失效后调用，避免残留曲目）
+   *
+   * @param uris 媒体 URI 列表
+   * @returns 删除的 playlist_item 行数
+   */
+  async removePlaylistItemsByUris(uris: string[]): Promise<number> {
+    if (uris.length === 0) {
+      return 0;
+    }
+    const candidates = this.collectPlaylistUriCandidates(uris);
+    if (candidates.length === 0) {
+      return 0;
+    }
+    try {
+      const deleted = await this.playlistItemTable.deleteData(
+        new relationalStore.RdbPredicates('playlist_item').in('uri', candidates)
+      );
+      HiLog.i(TAG, `Removed playlist items by uri rows=${deleted} input=${uris.length}`);
+      return deleted;
+    } catch (error) {
+      HiLog.e(TAG, `Failed to remove playlist items by uri: ${error}`);
+      return 0;
+    }
+  }
+
+  /**
+   * 查询全部歌单中的去重曲目 URI
+   *
+   * @returns 歌单曲目 URI 列表
+   */
+  private async getAllPlaylistItemUris(): Promise<string[]> {
+    try {
+      const resultSet = await this.playlistItemTable.queryData(
+        new relationalStore.RdbPredicates('playlist_item')
+      );
+      if (!resultSet) {
+        return [];
+      }
+      const uriSet: Set<string> = new Set();
+      while (resultSet.goToNextRow()) {
+        const uriIndex = resultSet.getColumnIndex('uri');
+        uriSet.add(resultSet.getString(uriIndex));
+      }
+      resultSet.close();
+      return Array.from(uriSet);
+    } catch (error) {
+      HiLog.e(TAG, `Failed to query all playlist item uris: ${error}`);
+      return [];
+    }
+  }
+
+  /**
+   * 清理全部歌单中已无有效媒体元数据的曲目（冷启动/进入歌单时调用）
+   *
+   * @returns 删除的 playlist_item 行数
+   */
+  async pruneInvalidPlaylistItems(): Promise<number> {
+    try {
+      const uris = await this.getAllPlaylistItemUris();
+      const invalidUris: string[] = [];
+      for (let i = 0; i < uris.length; i++) {
+        const meta = await this.queryMediaMetadataByUri(uris[i]);
+        if (meta === null) {
+          invalidUris.push(uris[i]);
+        }
+      }
+      if (invalidUris.length === 0) {
+        return 0;
+      }
+      const removed = await this.removePlaylistItemsByUris(invalidUris);
+      HiLog.i(TAG, `Pruned invalid playlist items uris=${invalidUris.length} rows=${removed}`);
+      return removed;
+    } catch (error) {
+      HiLog.e(TAG, `Failed to prune invalid playlist items: ${error}`);
+      return 0;
+    }
+  }
+
+  private collectPlaylistUriCandidates(uris: string[]): string[] {
+    const candidateSet: Set<string> = new Set();
+    for (let i = 0; i < uris.length; i++) {
+      const uri = uris[i];
+      if (StringUtil.isEmpty(uri)) {
+        continue;
+      }
+      candidateSet.add(uri);
+      const normalized = FileUtil.normalizeMediaUri(uri);
+      if (!StringUtil.isEmpty(normalized)) {
+        candidateSet.add(normalized);
+      }
+      const filePath = FileUtil.getPathFromUri(uri);
+      if (!StringUtil.isEmpty(filePath)) {
+        candidateSet.add(filePath);
+      }
+      if (uri.indexOf('://') < 0) {
+        const uriFromPath = FileUtil.getUriFromPath(uri);
+        if (!StringUtil.isEmpty(uriFromPath)) {
+          candidateSet.add(uriFromPath);
+        }
+      }
+    }
+    return Array.from(candidateSet);
+  }
+
+  /**
    * 判断 URI 是否已在播放列表中
    *
    * @param playlistId 列表 ID
@@ -955,23 +1060,7 @@ export class MediaDbManager {
   }
 
   async markAsInvalid(uri: string): Promise<boolean> {
-    try {
-      const values: relationalStore.ValuesBucket = {
-        is_valid: 0,
-        update_time: Date.now()
-      };
-
-      await this.mediaMetadataTable.updateData(
-        values,
-        new relationalStore.RdbPredicates('media_metadata').equalTo('uri', uri)
-      );
-
-      HiLog.i(TAG, `Marked as invalid: ${uri}`);
-      return true;
-    } catch (error) {
-      HiLog.e(TAG, `Failed to mark as invalid: ${error}`);
-      return false;
-    }
+    return await this.batchMarkAsInvalid([uri]);
   }
 
   /**
@@ -986,6 +1075,10 @@ export class MediaDbManager {
       return true;
     }
     try {
+      const candidates = this.collectPlaylistUriCandidates(uris);
+      if (candidates.length === 0) {
+        return true;
+      }
       const values: relationalStore.ValuesBucket = {
         is_valid: 0,
         update_time: Date.now()
@@ -993,10 +1086,15 @@ export class MediaDbManager {
 
       await this.mediaMetadataTable.updateData(
         values,
-        new relationalStore.RdbPredicates('media_metadata').in('uri', uris)
+        new relationalStore.RdbPredicates('media_metadata').in('uri', candidates)
       );
+      await this.mediaMetadataTable.updateData(
+        values,
+        new relationalStore.RdbPredicates('media_metadata').in('file_path', candidates)
+      );
+      const playlistRemoved = await this.removePlaylistItemsByUris(candidates);
 
-      HiLog.i(TAG, `Batch mark as invalid completed, count=${uris.length}`);
+      HiLog.i(TAG, `Batch mark as invalid completed, count=${uris.length}, candidates=${candidates.length}, playlistRemoved=${playlistRemoved}`);
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

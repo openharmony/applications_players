@@ -33,6 +33,7 @@ export struct PlaylistAddAudioView {
   onBack: () => void = () => {};
   onSearchTextChange: (keyword: string) => void = () => {};
   onAddTrack: (track: FileInfo) => void = () => {};
+  onEnsureCover: (track: FileInfo) => void = () => {};
 
   /** 当前歌单是否已包含该音频 */
   private isAlreadyAdded(uri: string): boolean {
@@ -96,6 +97,9 @@ export struct PlaylistAddAudioView {
                     isAlreadyAdded: this.isAlreadyAdded(track.uri),
                     onAddClick: () => {
                       this.onAddTrack(track);
+                    },
+                    onEnsureCover: (item: FileInfo) => {
+                      this.onEnsureCover(item);
                     }
                   })
                 }

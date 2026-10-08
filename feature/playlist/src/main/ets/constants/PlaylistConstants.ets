@@ -102,9 +102,10 @@ export class PlaylistConstants {
   /** 网格卡无封面：浅灰蓝底（参考设计稿） */
   static readonly GRID_CARD_COVER_PLACEHOLDER_BACKGROUND: string = '#D6E2EE';
   static readonly GRID_CARD_COVER_PLACEHOLDER_ICON_COLOR: string = '#A8B8C8';
-  /** 网格卡更多按钮 */
+  /** 网格卡更多按钮：深色半透明底 + 白色图标，压在封面上仍可辨认 */
   static readonly GRID_CARD_MORE_ICON_SIZE: number = 20;
-  static readonly GRID_CARD_MORE_ICON_COLOR: Resource = AppThemeConstants.TEXT_PRIMARY;
+  static readonly GRID_CARD_MORE_ICON_COLOR: string = '#FFFFFFFF';
+  static readonly GRID_CARD_MORE_BACKGROUND: string = 'rgba(128, 128, 128, 0.72)';
   static readonly GRID_CARD_MORE_HIT_SIZE: number = 32;
   static readonly GRID_CARD_MORE_MARGIN: number = 4;
   /** 歌单列表行无封面占位：浅灰底圆角框（多选页） */

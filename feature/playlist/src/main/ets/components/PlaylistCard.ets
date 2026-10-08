@@ -138,11 +138,13 @@ export struct PlaylistCard {
           SymbolGlyph($r('sys.symbol.dot_grid_1x2'))
             .fontSize(PlaylistConstants.GRID_CARD_MORE_ICON_SIZE)
             .fontColor([PlaylistConstants.GRID_CARD_MORE_ICON_COLOR])
+            .fontWeight(FontWeight.Medium)
             .renderingStrategy(SymbolRenderingStrategy.SINGLE)
         }
+        .buttonStyle(ButtonStyleMode.TEXTUAL)
         .width(PlaylistConstants.GRID_CARD_MORE_HIT_SIZE)
         .height(PlaylistConstants.GRID_CARD_MORE_HIT_SIZE)
-        .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
+        .backgroundColor(PlaylistConstants.GRID_CARD_MORE_BACKGROUND)
         .margin({
           top: PlaylistConstants.GRID_CARD_MORE_MARGIN,
           right: PlaylistConstants.GRID_CARD_MORE_MARGIN

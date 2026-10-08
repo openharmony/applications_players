@@ -31,6 +31,8 @@ import {
 } from '@ohos/playlist';
 import { MediaDbManager, PlaylistRecord } from '@ohos/common/src/main/ets/persistence/rdb/MediaDbManager';
 import { AudioItem } from '@ohos/common/src/main/ets/model/AudioItem';
+import { MediaType } from '@ohos/common/src/main/ets/datasource/MediaDataSource';
+import { MediaAggregateViewModel } from '@ohos/media/src/main/ets/manager/MediaAggregateViewModel';
 import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
 import { HomeViewModel } from './HomeViewModel';
@@ -116,6 +118,7 @@ export class PlaylistViewModel {
   /** 本次会话内用户点 X 隐藏续播条（杀进程后清空；播放中隐藏不影响持久化） */
   private sessionDismissedPlaylistIds: Set<number> = new Set();
   private resumeListenerRegistered: boolean = false;
+  private mediaListenerRegistered: boolean = false;
   private lastNotifiedDetailResumeBar: boolean = false;
   private lastNotifiedDetailResumeLabel: string = '';
   private detailTrackRemoveInFlight: boolean = false;
@@ -143,6 +146,7 @@ export class PlaylistViewModel {
    */
   public init(context: common.UIAbilityContext | null): void {
     this.ensureResumeChangeListener();
+    this.ensureMediaDataChangeListener();
     if (!context || this.initialized) {
       return;
     }
@@ -221,7 +225,13 @@ export class PlaylistViewModel {
       HiLog.w(TAG, `loadPlaylists skipped db not ready`);
       return;
     }
+    const pruned = await this.dbManager.pruneInvalidPlaylistItems();
+    HiLog.i(TAG, `loadPlaylists prunedInvalid=${pruned}`);
     const records = await this.dbManager.getAllPlaylists();
+    if (pruned === 0 && this.isSamePlaylistRecords(records)) {
+      HiLog.i(TAG, `loadPlaylists skipped unchanged count=${records.length}`);
+      return;
+    }
     const playlistIds = records.map((record: PlaylistRecord) => record.id);
     const firstUriMap = await this.dbManager.getPlaylistFirstTrackUriMap(playlistIds);
     const mapped = records.map((record: PlaylistRecord) => this.mapRecordToPlaylistItem(record));
@@ -242,6 +252,20 @@ export class PlaylistViewModel {
     this.syncPlaylistDataSource();
     HiLog.i(TAG, `loadPlaylists count=${this.playlists.length}`);
     this.notifyUiState();
+  }
+
+  private isSamePlaylistRecords(records: PlaylistRecord[]): boolean {
+    if (records.length !== this.playlists.length) {
+      return false;
+    }
+    for (let i = 0; i < records.length; i++) {
+      const current = this.playlists[i];
+      const record = records[i];
+      if (current.id !== record.id || current.name !== record.name || current.count !== record.itemCount) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /** 打开创建播放列表名称弹窗 */
@@ -507,7 +531,7 @@ export class PlaylistViewModel {
     this.notifyUiState();
   }
 
-  /** 打开添加音频页并加载可选音频 */
+  /** 打开添加音频页并加载可选音频（封面由列表行可见时懒加载，避免主线程卡死） */
   public async openAddAudioPage(): Promise<void> {
     if (!this.dbManager || this.detailPlaylistId < 0) {
       return;
@@ -519,17 +543,22 @@ export class PlaylistViewModel {
     this.addAudioTracks = [];
     for (const raw of rawTracks) {
       raw.mimeType = 'audio/*';
-      const track = FileInfo.fromFileOperateFileInfo(raw);
-      // 添加音频页与首页共用封面来源：DB 为空时合并内存扫描与系统 media:// 缩略图
-      PlaylistCoverUtil.applyAvailableCovers(track);
-      this.addAudioTracks.push(track);
+      this.addAudioTracks.push(FileInfo.fromFileOperateFileInfo(raw));
     }
     await this.refreshAddAudioInPlaylistUris();
     this.applyAddAudioFilter();
-    const withCover = this.addAudioTracks.filter((item: FileInfo) => item.coverUri.length > 0).length;
-    HiLog.i(TAG, `openAddAudioPage candidates=${this.addAudioTracks.length} withCover=${withCover} inPlaylist=${this.addAudioInPlaylistUriSet.size}`);
+    HiLog.i(TAG, `openAddAudioPage candidates=${this.addAudioTracks.length} inPlaylist=${this.addAudioInPlaylistUriSet.size}`);
     NavRouterHelper.push(AppNavRoutes.PLAYLIST_ADD_AUDIO);
     this.notifyUiState();
+  }
+
+  /**
+   * 添加音频页列表行可见时补全封面（内存扫描 / 系统 media://）
+   *
+   * @param track 当前行音频
+   */
+  public ensureAddAudioTrackCover(track: FileInfo): void {
+    PlaylistCoverUtil.applyAvailableCovers(track);
   }
 
   /**
@@ -608,11 +637,19 @@ export class PlaylistViewModel {
       return;
     }
     const tracks: FileInfo[] = [];
+    const missingUris: string[] = [];
     for (let i = 0; i < uris.length; i++) {
       const fileInfo = await this.resolveFileInfo(uris[i]);
       if (fileInfo) {
         tracks.push(fileInfo);
+      } else {
+        missingUris.push(uris[i]);
       }
+    }
+    if (missingUris.length > 0) {
+      await this.dbManager.removePlaylistItemsByUris(missingUris);
+      await this.patchPlaylistItemCover(item.id);
+      HiLog.i(TAG, `playPlaylist pruned missing count=${missingUris.length} playlistId=${item.id}`);
     }
     if (tracks.length === 0) {
       promptAction.showToast({ message: PlaylistToastConstants.PLAY_EMPTY });
@@ -1147,11 +1184,22 @@ export class PlaylistViewModel {
     }
     const uris = await this.dbManager.getPlaylistItems(this.detailPlaylistId);
     const tracks: FileInfo[] = [];
+    const missingUris: string[] = [];
     for (const uri of uris) {
       const info = await this.resolveFileInfo(uri);
       if (info) {
         tracks.push(info);
+      } else {
+        missingUris.push(uri);
       }
+    }
+    if (missingUris.length > 0) {
+      await this.dbManager.removePlaylistItemsByUris(missingUris);
+      HiLog.i(TAG, `reloadDetailTracks pruned missing count=${missingUris.length}`);
+    }
+    if (this.isSameDetailTrackUris(tracks)) {
+      HiLog.i(TAG, `reloadDetailTracks skipped unchanged count=${tracks.length}`);
+      return;
     }
     this.detailTrackDataSource.setData(tracks);
     const withCover = tracks.filter((item: FileInfo) => item.coverUri.length > 0).length;
@@ -1167,21 +1215,13 @@ export class PlaylistViewModel {
     if (!this.dbManager) {
       return null;
     }
-    let track: FileInfo | null = null;
     const fromDb: FileOperateFileInfo | null = await this.dbManager.queryMediaMetadataByUri(uri);
-    if (fromDb) {
-      fromDb.mimeType = 'audio/*';
-      track = FileInfo.fromFileOperateFileInfo(fromDb);
-    } else {
-      const slash = uri.lastIndexOf('/');
-      const fileName = slash >= 0 ? uri.substring(slash + 1) : uri;
-      const fallback = new FileOperateFileInfo();
-      fallback.uri = uri;
-      fallback.path = uri;
-      fallback.fileName = fileName;
-      fallback.mimeType = 'audio/*';
-      track = FileInfo.fromFileOperateFileInfo(fallback);
+    if (!fromDb) {
+      HiLog.w(TAG, `resolveFileInfo missing metadata uri=${uri}`);
+      return null;
     }
+    fromDb.mimeType = 'audio/*';
+    const track = FileInfo.fromFileOperateFileInfo(fromDb);
     // 详情/编辑/播放队列共用：DB 封面为空时合并内存扫描与系统 media:// 缩略图
     PlaylistCoverUtil.applyAvailableCovers(track);
     HiLog.i(TAG, `resolveFileInfo uri=${uri} hasCover=${track.coverUri.length > 0}`);
@@ -1328,6 +1368,40 @@ export class PlaylistViewModel {
     this.resumeManager.addChangeListener(this.handleResumePersisted);
     this.resumeListenerRegistered = true;
     HiLog.i(TAG, 'resume change listener registered');
+  }
+
+  private ensureMediaDataChangeListener(): void {
+    if (this.mediaListenerRegistered) {
+      return;
+    }
+    MediaAggregateViewModel.getInstance().addDataChangeListener(this.handleMediaDataChanged);
+    this.mediaListenerRegistered = true;
+    HiLog.i(TAG, 'media data change listener registered');
+  }
+
+  private handleMediaDataChanged = (mediaType: MediaType, data: FileInfo[]): void => {
+    HiLog.i(TAG, `handleMediaDataChanged type=${MediaType[mediaType]} count=${data.length}`);
+    void this.refreshPlaylistsAfterMediaChange();
+  };
+
+  private async refreshPlaylistsAfterMediaChange(): Promise<void> {
+    if (this.detailPlaylistId >= 0) {
+      await this.reloadDetailTracks();
+    }
+    await this.loadPlaylists();
+  }
+
+  private isSameDetailTrackUris(tracks: FileInfo[]): boolean {
+    const current = this.detailTrackDataSource.getDataArray();
+    if (current.length !== tracks.length) {
+      return false;
+    }
+    for (let i = 0; i < tracks.length; i++) {
+      if (current[i].uri !== tracks[i].uri) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private handleResumePersisted: PlaylistPlaybackResumeChangeListener = (playlistId: number): void => {

@@ -35,6 +35,7 @@ export struct PlaylistAddAudioRow {
   @Prop @Watch('onTrackOrKeywordChange') searchKeyword: string = '';
   @Prop isAlreadyAdded: boolean = false;
   onAddClick: () => void = () => {};
+  onEnsureCover: (track: FileInfo) => void = () => {};
 
   @State thumbnailSrc: string | Resource = '';
   @State metaText: string = '';
@@ -46,16 +47,14 @@ export struct PlaylistAddAudioRow {
   private lastRenderedTrackKey: string = '';
 
   aboutToAppear(): void {
-    this.lastRenderedTrackKey = this.buildTrackDisplayKey();
-    this.bindTrackDisplay();
+    this.ensureCoverAndBind();
     this.rebuildHighlightSegments();
   }
 
   onTrackOrKeywordChange(): void {
     const trackKey = this.buildTrackDisplayKey();
     if (trackKey !== this.lastRenderedTrackKey) {
-      this.lastRenderedTrackKey = trackKey;
-      this.bindTrackDisplay();
+      this.ensureCoverAndBind();
     }
     this.rebuildHighlightSegments();
   }
@@ -63,6 +62,15 @@ export struct PlaylistAddAudioRow {
   /** 生成曲目展示键（URI + 封面，LazyForEach 复用时识别变更） */
   private buildTrackDisplayKey(): string {
     return `${this.track.uri}|${this.track.coverUri}|${this.track.thumbUri}`;
+  }
+
+  /** 行可见时再补封面，避免打开页时全量匹配卡住主线程 */
+  private ensureCoverAndBind(): void {
+    if (!MediaItemDisplayUtil.hasCustomThumbnail(this.track)) {
+      this.onEnsureCover(this.track);
+    }
+    this.bindTrackDisplay();
+    this.lastRenderedTrackKey = this.buildTrackDisplayKey();
   }
 
   /** 绑定封面与元信息 */

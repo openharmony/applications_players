@@ -2,7 +2,7 @@
 
 ## Introduction
 
-**Player** (bundle name: `com.ohos.players`) is a pre-installed **system application** in OpenHarmony, providing media list browsing, audio/video playback, playlist management, and search capabilities across phone and tablet devices.
+**Player** (bundle name: `com.ohos.players`) is a pre-installed **system application** in OpenHarmony standard system, providing media list browsing, audio/video playback, playlist management, and search capabilities across phone and tablet devices.
 
 This is a system pre-installed application. Users can enter the Player from the desktop icon, File Manager's "Open with" action, and other entry points.
 
@@ -416,6 +416,7 @@ applications_players
 │     └─utils/                          # Utilities, including logging, metadata parsing, device config, etc.
 ├─hvigor                                # Build tool configuration
 ├─signature                             # Signing certificate and profile
+├─bundle.json                           # Component description: name, source path, system type, and build entry
 ├─docs/figures/                         # Architecture/build documentation images
 ├─build-profile.json5                   # Project-level configuration
 ├─oh-package.json5
